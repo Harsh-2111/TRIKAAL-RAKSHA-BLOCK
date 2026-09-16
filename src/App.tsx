@@ -14,6 +14,7 @@ import { SafetyCheckoutModal } from './components/SafetyCheckoutModal';
 import {
   getStoredRequests,
   saveStoredRequests,
+  clearAllStoredRequests,
   resetStoredRequests,
   getStoredUser,
   saveStoredUser,
@@ -33,6 +34,7 @@ import {
   insertBlockRequestToSupabase,
   updateBlockRequestInSupabase,
   deleteBlockRequestInSupabase,
+  deleteAllBlockRequestsInSupabase,
   batchUpdateBlockRequestsInSupabase,
   insertAiScheduleLogToSupabase,
   setupRealtimeSync,
@@ -667,6 +669,23 @@ export default function App() {
     }
   };
 
+  const handleClearAllRequests = async () => {
+    if (!window.confirm('This will permanently delete ALL block requests for everyone. This cannot be undone. Continue?')) {
+      return;
+    }
+
+    const clearedRequests = clearAllStoredRequests();
+    setAllRequests(clearedRequests);
+    saveNotifications(notifications.filter((notification) => !notification.requestId));
+
+    const supabaseResult = await deleteAllBlockRequestsInSupabase();
+    if (supabaseResult.success) {
+      showToast('All block requests were permanently cleared for everyone.', 'success');
+    } else {
+      showToast(`Local requests were cleared, but Supabase deletion failed: ${supabaseResult.error || 'Unknown error'}`, 'info');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans selection:bg-amber-500 selection:text-white">
       {/* Top Navigation Bar: Present on all screens (NO SIDEBAR NAVIGATION) */}
@@ -726,6 +745,7 @@ export default function App() {
               onOpenActionModal={(req) => setActiveAdminActionRequest(req)}
               onViewRequestDetail={(req) => setActiveDetailRequest(req)}
               onResetData={handleResetData}
+              onClearAllRequests={handleClearAllRequests}
               onAdminAction={handleAdminAction}
               onApplyAiSchedule={handleApplyAiSchedule}
               onOpenSafetyCheckout={(req) => setActiveSafetyCheckoutRequest(req)}

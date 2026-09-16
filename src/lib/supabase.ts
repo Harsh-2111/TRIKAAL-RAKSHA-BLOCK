@@ -1,7 +1,7 @@
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import { BlockRequest, User, UserRole, Department, AiScheduleRecord, SupabaseSyncState } from '../types';
-import { INITIAL_BLOCK_REQUESTS, OFFICIAL_ROLES, normalizePersonName } from '../data/mockData';
+import { OFFICIAL_ROLES, normalizePersonName } from '../data/mockData';
 
 // Pre-configured Production Supabase Credentials
 const getEnv = (key: string, fallback: string): string => {
@@ -470,25 +470,7 @@ export async function fetchBlockRequestsFromSupabase(activeZone?: string): Promi
       return { requests: filtered, fromSupabase: true };
     }
 
-    // Table is empty: seed initial baseline requests
-    try {
-      const seedPayload = INITIAL_BLOCK_REQUESTS.map(blockRequestToDb);
-      const { error: seedErr } = await supabase.from('block_requests').upsert(seedPayload);
-      if (!seedErr) {
-        const filtered = activeZone && activeZone !== 'ALL'
-          ? INITIAL_BLOCK_REQUESTS.filter(r => (r.zoneCode === activeZone || r.zone?.includes(activeZone) || r.division?.includes(activeZone)))
-          : INITIAL_BLOCK_REQUESTS;
-        return { requests: filtered, fromSupabase: true };
-      }
-    } catch (seedCatch) {
-      console.warn('Could not seed block_requests:', seedCatch);
-    }
-
-    const filtered = activeZone && activeZone !== 'ALL'
-      ? INITIAL_BLOCK_REQUESTS.filter(r => (r.zoneCode === activeZone || r.zone?.includes(activeZone) || r.division?.includes(activeZone)))
-      : INITIAL_BLOCK_REQUESTS;
-
-    return { requests: filtered, fromSupabase: false };
+    return { requests: [], fromSupabase: true };
   } catch (err: any) {
     console.warn('Fetch block_requests caught error:', err.message);
     return { requests: [], fromSupabase: false, error: err.message };
@@ -559,6 +541,25 @@ export async function deleteBlockRequestInSupabase(
     return { success: true };
   } catch (err: any) {
     console.error('Exception in deleteBlockRequestInSupabase:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function deleteAllBlockRequestsInSupabase(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('block_requests')
+      .delete()
+      .neq('request_data->>id', '');
+
+    if (error) {
+      console.warn('Supabase deleteAllBlockRequests warning:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Exception in deleteAllBlockRequestsInSupabase:', err);
     return { success: false, error: err.message };
   }
 }

@@ -22,7 +22,8 @@ import {
   Printer,
   FileSpreadsheet,
   Download,
-  HardHat
+  HardHat,
+  Trash2
 } from 'lucide-react';
 import { DEPARTMENT_CONFIG, detectShadowBlockOpportunities, RAILWAY_SECTIONS } from '../data/mockData';
 import { BlockPriority, BlockRequest, BlockStatus, Department, User, RailwayZoneCode } from '../types';
@@ -41,6 +42,7 @@ interface AdminDashboardProps {
   onOpenActionModal?: (req: BlockRequest) => void;
   onViewRequestDetail: (req: BlockRequest) => void;
   onResetData: () => void;
+  onClearAllRequests: () => void;
   onAdminAction: (updatedReq: BlockRequest) => void;
   onApplyAiSchedule?: (updatedRequests: BlockRequest[]) => void;
   onOpenSafetyCheckout?: (req: BlockRequest) => void;
@@ -65,6 +67,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   allRequests,
   onViewRequestDetail,
   onResetData,
+  onClearAllRequests,
   onAdminAction,
   onApplyAiSchedule,
   onOpenSafetyCheckout,
@@ -761,6 +764,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <Printer className="w-3.5 h-3.5 text-blue-700" />
               <span>PDF Roster</span>
             </button>
+
+            {currentUser.role === 'SECTION_CONTROLLER' && (
+              <button
+                onClick={onClearAllRequests}
+                className="flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold text-red-800 bg-red-50 hover:bg-red-100 rounded border border-red-200 transition-colors cursor-pointer shadow-2xs"
+                title="Permanently delete all block requests"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-700" />
+                <span>Clear All Requests</span>
+              </button>
+            )}
           </div>
         </div>
 

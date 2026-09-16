@@ -848,19 +848,7 @@ export function getStoredRequests(): BlockRequest[] {
       return INITIAL_BLOCK_REQUESTS;
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return INITIAL_BLOCK_REQUESTS;
-    // merge any new base sample items without overwriting existing state
-    const existingIds = new Set(parsed.map((r: BlockRequest) => r.id));
-    let hasNew = false;
-    INITIAL_BLOCK_REQUESTS.forEach((req) => {
-      if (!existingIds.has(req.id)) {
-        parsed.push(req);
-        hasNew = true;
-      }
-    });
-    if (hasNew) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-    }
+    if (!Array.isArray(parsed)) return [];
     const normalized = parsed.filter((request: BlockRequest) => request.status !== 'COMPLETED').map((request: BlockRequest) => ({
       ...request,
       applicantName: normalizePersonName(request.applicantName) || request.applicantName,
@@ -870,7 +858,7 @@ export function getStoredRequests(): BlockRequest[] {
     return normalized;
   } catch (err) {
     console.error('Failed to read from localStorage', err);
-    return INITIAL_BLOCK_REQUESTS;
+    return [];
   }
 }
 
@@ -880,6 +868,15 @@ export function saveStoredRequests(requests: BlockRequest[]): void {
   } catch (err) {
     console.error('Failed to save to localStorage', err);
   }
+}
+
+export function clearAllStoredRequests(): BlockRequest[] {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+  } catch (err) {
+    console.error('Failed to clear localStorage', err);
+  }
+  return [];
 }
 
 export function resetStoredRequests(): BlockRequest[] {
