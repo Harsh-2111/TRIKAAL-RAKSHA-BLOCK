@@ -162,7 +162,18 @@ export const DepartmentLoginModal: React.FC<DepartmentLoginModalProps> = ({
               <KeyRound className="w-4 h-4" />
               <span>Authenticating for: <strong>{currentRoleInfo.label}</strong></span>
             </div>
-            <span className="text-[11px] uppercase tracking-wider font-bold">Official Console</span>
+            <button
+              type="button"
+              onClick={() => {
+                setUserId(currentRoleInfo.id);
+                setPassword(currentRoleInfo.pass);
+                setErrorMessage(null);
+              }}
+              className="rounded border border-current/30 bg-white/70 px-2 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-white transition-colors cursor-pointer"
+              title={`Auto fill demo credentials for ${currentRoleInfo.label}`}
+            >
+              Auto Fill
+            </button>
           </div>
 
           {/* Inline Red Error Message Display */}

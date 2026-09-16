@@ -631,10 +631,22 @@ export default function App() {
 
     // Bundle actions update the existing requisitions by ID. Normalize both
     // collections first so repeated callback payloads cannot create duplicate rows.
-    const updateMap = new Map(updatedRequests.map((request) => [request.id, request]));
-    const existingById = new Map(allRequests.map((request) => [request.id, request]));
-    const merged = Array.from(existingById.values()).map((request) => {
-      const bundledRequest = updateMap.get(request.id);
+    const updateMap: Record<string, BlockRequest> = {};
+    updatedRequests.forEach((request: BlockRequest) => {
+      updateMap[request.id] = request;
+    });
+
+    const uniqueRequests: BlockRequest[] = [];
+    const seenRequestIds = new Set<string>();
+    allRequests.forEach((request: BlockRequest) => {
+      if (!seenRequestIds.has(request.id)) {
+        seenRequestIds.add(request.id);
+        uniqueRequests.push(request);
+      }
+    });
+
+    const merged = uniqueRequests.map((request: BlockRequest) => {
+      const bundledRequest = updateMap[request.id];
       return bundledRequest
         ? {
             ...request,
