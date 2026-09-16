@@ -1,0 +1,9 @@
+section,total_tracks,line_type,daily_train_count,criticality_tier,max_hourly_capacity
+NDLS-GZB,4,QUADRUPLE,108,Tier-3 (Medium Density),5.5
+GZB-ALJN,3,TRIPLE,142,Tier-2 (High Density),7.5
+NDLS-PWL,4,QUADRUPLE,106,Tier-3 (Medium Density),6.1
+PWL-MTJ,4,QUADRUPLE,102,Tier-3 (Medium Density),5.7
+DLI-DEC,2,DOUBLE,87,Tier-3 (Medium Density),4.5
+DEC-GGN,2,DOUBLE,209,Tier-1 (Ultra High Density),11.8
+NZM-FDB,4,QUADRUPLE,130,Tier-2 (High Density),7.5
+GZB-MTC,4,QUADRUPLE,219,Tier-1 (Ultra High Density),12.0
