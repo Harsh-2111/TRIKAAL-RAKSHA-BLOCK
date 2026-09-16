@@ -98,6 +98,7 @@ export interface BlockRequest {
   safetyClearedAt?: string;
   safetyClearedBy?: string;
   safetyChecklistPassed?: boolean;
+  closedAt?: string;
 }
 
 export interface BundledBlockWindow {

@@ -116,6 +116,7 @@ export function dbToBlockRequest(row: any): BlockRequest {
     aiOptimized: Boolean(storedRequest.ai_optimized ?? storedRequest.aiOptimized ?? false),
     aiBundleId: storedRequest.ai_bundle_id ?? storedRequest.aiBundleId ?? undefined,
     aiOptimizationNotes: storedRequest.ai_optimization_notes ?? storedRequest.aiOptimizationNotes ?? undefined,
+    closedAt: storedRequest.closed_at ?? storedRequest.closedAt ?? undefined,
   };
 }
 
@@ -451,12 +452,7 @@ export async function fetchBlockRequestsFromSupabase(activeZone?: string): Promi
     }
 
     if (data && data.length > 0) {
-      const allParsed = data.map(dbToBlockRequest);
-      const completedRequests = allParsed.filter((request) => request.status === 'COMPLETED');
-      if (completedRequests.length > 0) {
-        await Promise.all(completedRequests.map((request) => deleteBlockRequestInSupabase(request.id)));
-      }
-      const parsed = allParsed.filter((request) => request.status !== 'COMPLETED');
+      const parsed = data.map(dbToBlockRequest);
       const filtered = activeZone && activeZone !== 'ALL'
         ? parsed.filter((request) => request.zoneCode === activeZone || request.zone?.includes(activeZone) || request.division?.includes(activeZone))
         : parsed;

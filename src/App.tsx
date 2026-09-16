@@ -570,25 +570,33 @@ export default function App() {
 
   // Feature 2: Site Engineer Safety Checkout & Line Clearance Submission
   const handleSafetyClearanceSubmit = async (clearedReq: BlockRequest) => {
-    // 1. Update state and persistence
-    const updated = allRequests.filter((r) => r.id !== clearedReq.id);
+    const bundleId = clearedReq.aiBundleId;
+    const closedAt = clearedReq.closedAt || new Date().toISOString();
+    const updatedRequest = { ...clearedReq, status: 'COMPLETED' as const, closedAt };
+    const updated = allRequests.map((request) => {
+      const belongsToBundle = Boolean(bundleId && request.aiBundleId === bundleId);
+      return request.id === clearedReq.id || belongsToBundle
+        ? { ...request, status: 'COMPLETED' as const, closedAt, safetyClearedAt: updatedRequest.safetyClearedAt, safetyClearedBy: updatedRequest.safetyClearedBy, safetyChecklistPassed: updatedRequest.safetyChecklistPassed, controllerRemarks: updatedRequest.controllerRemarks }
+        : request;
+    });
     setAllRequests(updated);
     saveStoredRequests(updated);
     setActiveSafetyCheckoutRequest(null);
     if (activeDetailRequest?.id === clearedReq.id) {
-      setActiveDetailRequest(null);
+      setActiveDetailRequest(updatedRequest);
     }
 
     const engineerName = clearedReq.safetyClearedBy || currentUser?.name || 'Site Engineer';
 
-    // 2. Remove the closed block from Supabase.
+    // Persist each bundled item so the audit trail remains visible across clients.
     try {
-      const dbRes = await deleteBlockRequestInSupabase(clearedReq.id);
-      if (!dbRes.success) {
-        showToast(`Closed block removed locally, but cloud deletion needs retry: ${dbRes.error || 'sync error'}.`, 'info');
+      const closedRequests = updated.filter((request) => request.status === 'COMPLETED' && (request.id === clearedReq.id || Boolean(bundleId && request.aiBundleId === bundleId)));
+      const results = await Promise.all(closedRequests.map((request) => updateBlockRequestInSupabase(request)));
+      if (results.some((result) => !result.success)) {
+        showToast('Safety clearance saved locally, but one or more bundled records need cloud sync retry.', 'info');
       }
     } catch (err) {
-      console.warn('Supabase closed block deletion fallback:', err);
+      console.warn('Supabase completed-block update fallback:', err);
     }
 
     // 3. Real-time notification dispatch with audio chime to the affected department and Main Control Admin
@@ -621,8 +629,21 @@ export default function App() {
       return;
     }
 
-    const updateMap = new Map(updatedRequests.map((r) => [r.id, r]));
-    const merged = allRequests.map((r) => updateMap.get(r.id) || r);
+    // Bundle actions update the existing requisitions by ID. Normalize both
+    // collections first so repeated callback payloads cannot create duplicate rows.
+    const updateMap = new Map(updatedRequests.map((request) => [request.id, request]));
+    const existingById = new Map(allRequests.map((request) => [request.id, request]));
+    const merged = Array.from(existingById.values()).map((request) => {
+      const bundledRequest = updateMap.get(request.id);
+      return bundledRequest
+        ? {
+            ...request,
+            ...bundledRequest,
+            status: 'APPROVED' as const,
+            aiOptimized: true,
+          }
+        : request;
+    });
 
     setAllRequests(merged);
     saveStoredRequests(merged);

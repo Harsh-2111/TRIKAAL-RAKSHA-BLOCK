@@ -849,7 +849,7 @@ export function getStoredRequests(): BlockRequest[] {
     }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    const normalized = parsed.filter((request: BlockRequest) => request.status !== 'COMPLETED').map((request: BlockRequest) => ({
+    const normalized = parsed.map((request: BlockRequest) => ({
       ...request,
       applicantName: normalizePersonName(request.applicantName) || request.applicantName,
       reviewedBy: normalizePersonName(request.reviewedBy),

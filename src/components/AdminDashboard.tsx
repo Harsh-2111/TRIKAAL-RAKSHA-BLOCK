@@ -57,6 +57,14 @@ export interface ConflictInfo {
   summary: string;
 }
 
+const deduplicateRequests = (requests: BlockRequest[]): BlockRequest[] => {
+  const byId = new Map<string, BlockRequest>();
+  requests.forEach((request) => {
+    if (!byId.has(request.id)) byId.set(request.id, request);
+  });
+  return Array.from(byId.values());
+};
+
 const normalizeDepartment = (department: string): Department => {
   const normalized = department.toUpperCase().replace(/\s+/g, ' ').trim();
   if (normalized === 'S&T' || normalized === 'S & T' || normalized === 'ST') return 'ST';
@@ -232,7 +240,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Filtered requests based on all controls
   const filteredRequests = useMemo(() => {
-    return allRequests.filter((req) => {
+    return deduplicateRequests(allRequests).filter((req) => {
       // 0. Zone filter
       if (activeZone && activeZone !== 'ALL') {
         const reqZone =
@@ -258,6 +266,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       else if (statusFilter === 'APPROVED') matchesStatus = req.status === 'APPROVED';
       else if (statusFilter === 'MODIFIED') matchesStatus = req.status === 'MODIFIED_APPROVED';
       else if (statusFilter === 'REJECTED') matchesStatus = req.status === 'REJECTED';
+      else if (statusFilter === 'COMPLETED') matchesStatus = req.status === 'COMPLETED';
       else if (statusFilter !== 'ALL') matchesStatus = req.status === statusFilter;
 
       // 3. Section/Line filter
@@ -359,9 +368,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         );
       case 'COMPLETED':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-300">
-            <ShieldCheck className="w-3 h-3 mr-1 text-teal-600" />
-            Completed / Line Clear
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+            <ShieldCheck className="w-3 h-3 mr-1 text-slate-500" />
+            Closed / Completed
           </span>
         );
       case 'REJECTED':
@@ -734,6 +743,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <option value="APPROVED">Approved</option>
                 <option value="MODIFIED">Modified</option>
                 <option value="REJECTED">Rejected</option>
+                <option value="COMPLETED">Closed / Completed</option>
               </select>
             </div>
 
@@ -1024,7 +1034,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       {/* 8. REQUIREMENT 4: Action Controls (Admin Exclusive) */}
                       {/* For every request row, provide 3 explicit action buttons: APPROVE, REJECT, MODIFY & APPROVE */}
                       <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <div className="inline-flex items-center space-x-1.5">
+                          <div className="inline-flex items-center space-x-1.5">
+                            {req.status === 'COMPLETED' ? (
+                              <span className="inline-flex items-center rounded border border-slate-300 bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500" title={req.closedAt ? `Closed at ${new Date(req.closedAt).toLocaleString()}` : 'Block closed'}>
+                                <ShieldCheck className="mr-1 h-3.5 w-3.5" />
+                                Closed
+                              </span>
+                            ) : (
+                              <>
                           {/* 1. APPROVE Button (Green) */}
                           <button
                             type="button"
@@ -1108,6 +1125,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
+                              </>
+                            )}
                         </div>
                       </td>
                     </tr>

@@ -62,6 +62,7 @@ export const SafetyCheckoutModal: React.FC<SafetyCheckoutModalProps> = ({
     const updatedRequest: BlockRequest = {
       ...request,
       status: 'COMPLETED',
+      closedAt: new Date().toISOString(),
       safetyChecklistAcknowledged: true,
       safetyChecklistPassed: true,
       safetyClearedAt: nowStr,
