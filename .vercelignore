@@ -1,4 +1,6 @@
 requirements.txt
+api/
+server/
 src/ml/
 src/solver/
 scripts/
