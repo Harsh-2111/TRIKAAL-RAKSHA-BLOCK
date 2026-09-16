@@ -101,7 +101,7 @@ Open http://localhost:3000/.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in your own values before deploying. The Supabase client currently includes a hardcoded demo fallback so the application can run without an environment file; replace it with your own project credentials for any real deployment.
+Copy `.env.example` to `.env` and fill in your own values before deploying. Supabase credentials are required at runtime. The ML risk scoring API uses port `8001`, while the CP-SAT solver uses port `8000`.
 
 ## Available Scripts
 
@@ -178,7 +178,7 @@ RAKSHA-BLOCK-TRIKAAL-main/
 This is currently a demo-grade deployment, not a production-hardened system:
 
 - Demo login credentials are static and shared by role rather than by individual user.
-- `src/lib/supabase.ts` includes a hardcoded fallback Supabase URL and anon key. Replace these with environment variables and remove the fallback before deploying anywhere real.
+- `src/lib/supabase.ts` requires the Supabase URL and anon key through environment variables and does not include credential fallbacks.
 - The RLS policies in `supabase/realtime_setup.sql` are intentionally permissive for demo purposes. Use Supabase Auth and department claims to enforce per-department access in production.
 - Migrate the current demo role credentials to Supabase Auth before handling operational data.
 

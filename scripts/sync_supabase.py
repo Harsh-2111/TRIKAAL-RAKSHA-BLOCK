@@ -21,14 +21,6 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT_DIR / "data" / "synthetic"
 DEFAULT_ENV_PATH = ROOT_DIR / ".env"
 
-SUPABASE_URL = "https://rywnmfynpenbwfbzqxyg.supabase.co"
-SUPABASE_ANON_KEY = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-    "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5d25tZnlucGVuYmZicXp5eHlnIiw"
-    "icm9sZSI6ImFub24iLCJpYXQiOjE3ODkwMzYxMzAsImV4cCI6MjEwNDYxMjEzMH0."
-    "KSy4uyXv-YUC_yxXivUDdDG6Aws8I8OK5kNyu2yf6LA"
-)
-
 TABLE_CONFIG = (
     ("corridor_capacity.csv", "corridor_capacity", "section"),
     ("trains_master.csv", "trains_master", "train_no"),
@@ -53,8 +45,8 @@ def parse_env_file(path: Path) -> dict[str, str]:
 def ensure_env_file(path: Path) -> dict[str, str]:
     """Create or complete .env without overwriting existing values."""
     defaults = {
-        "VITE_SUPABASE_URL": SUPABASE_URL,
-        "VITE_SUPABASE_ANON_KEY": SUPABASE_ANON_KEY,
+        "VITE_SUPABASE_URL": os.environ.get("VITE_SUPABASE_URL", ""),
+        "VITE_SUPABASE_ANON_KEY": os.environ.get("VITE_SUPABASE_ANON_KEY", ""),
     }
     existing = parse_env_file(path)
     missing = [key for key, value in defaults.items() if not existing.get(key)]

@@ -3,23 +3,16 @@ import bcrypt from 'bcryptjs';
 import { BlockRequest, User, UserRole, Department, AiScheduleRecord, SupabaseSyncState } from '../types';
 import { OFFICIAL_ROLES, normalizePersonName } from '../data/mockData';
 
-// Pre-configured Production Supabase Credentials
-const getEnv = (key: string, fallback: string): string => {
-  try {
-    return ((import.meta as any).env && (import.meta as any).env[key]) || fallback;
-  } catch {
-    return fallback;
+const requireEnv = (key: string): string => {
+  const value = (import.meta as any).env?.[key];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${key}`);
   }
+  return value;
 };
 
-export const SUPABASE_URL =
-  getEnv('VITE_SUPABASE_URL', 'https://rywnmfynpenbwfbzqxyg.supabase.co');
-
-export const SUPABASE_ANON_KEY =
-  getEnv(
-    'VITE_SUPABASE_ANON_KEY',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5d25tZnlucGVuYndmYnpxeHlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwMzYxMzAsImV4cCI6MjEwNDYxMjEzMH0.KSy4uyXv-YUC_yxXivUDdDG6Aws8I8OK5kNyu2yf6LA'
-  );
+export const SUPABASE_URL = requireEnv('VITE_SUPABASE_URL');
+export const SUPABASE_ANON_KEY = requireEnv('VITE_SUPABASE_ANON_KEY');
 
 // Initialize the Supabase Client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

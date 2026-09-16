@@ -8,7 +8,7 @@ const getEnv = (key: string, fallback: string): string => {
   }
 };
 
-const ML_API_URL = getEnv('VITE_ML_API_URL', 'http://localhost:8000');
+const ML_API_URL = getEnv('VITE_API_BASE_URL', 'http://localhost:8001');
 
 const NUMERIC_RISK_WEIGHTS = {
   severity: 12.0,

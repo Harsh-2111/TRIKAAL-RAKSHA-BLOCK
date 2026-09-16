@@ -215,3 +215,9 @@ def predict_score(defect: DefectItem) -> ScoreResponse:
 @app.post("/predict/batch", response_model=list[ScoreResponse])
 def predict_batch(request: BatchDefectRequest) -> list[ScoreResponse]:
     return sorted((score_item(item) for item in request.defects), key=lambda result: result.predicted_risk_score, reverse=True)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8001)
