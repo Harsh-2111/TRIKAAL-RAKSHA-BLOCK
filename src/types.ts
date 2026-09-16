@@ -192,5 +192,6 @@ export interface AppNotification {
   requestId?: string;
   department?: Department;
   targetRole?: UserRole | 'ALL';
+  sourceRole?: UserRole;
   priority?: 'HIGH' | 'NORMAL';
 }

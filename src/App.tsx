@@ -119,10 +119,14 @@ export default function App() {
     }
 
     notifications
-      .filter((notification) => !notificationIdsRef.current!.has(notification.id))
+      .filter((notification) => (
+        !notificationIdsRef.current!.has(notification.id) &&
+        isNotificationVisibleToUser(notification, currentUser) &&
+        notification.sourceRole !== currentUser?.role
+      ))
       .forEach(() => playRailwayChime(false));
     notificationIdsRef.current = currentIds;
-  }, [notifications]);
+  }, [notifications, currentUser]);
 
   // Modal states
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
@@ -160,6 +164,7 @@ export default function App() {
 
     const newEntry: AppNotification = {
       ...notif,
+      sourceRole: currentUser?.role,
       id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       timestamp: timeStr,
       read: false,
