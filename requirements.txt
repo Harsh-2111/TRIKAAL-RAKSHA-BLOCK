@@ -1,1 +1,2 @@
 ortools>=9.10,<10
+supabase>=2.0,<3
