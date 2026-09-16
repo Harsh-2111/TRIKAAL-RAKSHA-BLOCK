@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { LoginPortal } from './components/LoginPortal';
 import { DepartmentDashboard } from './components/DepartmentDashboard';
@@ -107,8 +107,22 @@ export default function App() {
     }
     return DEFAULT_NOTIFICATIONS;
   });
+  const notificationIdsRef = useRef<Set<string> | null>(null);
   const [isAudioMutedState, setIsAudioMutedState] = useState<boolean>(() => isAudioMuted());
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const currentIds = new Set(notifications.map((notification) => notification.id));
+    if (!notificationIdsRef.current) {
+      notificationIdsRef.current = currentIds;
+      return;
+    }
+
+    notifications
+      .filter((notification) => !notificationIdsRef.current!.has(notification.id))
+      .forEach(() => playRailwayChime(false));
+    notificationIdsRef.current = currentIds;
+  }, [notifications]);
 
   // Modal states
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
@@ -171,8 +185,6 @@ export default function App() {
       return updated;
     });
 
-    // Crisp Indian Railways control room chime
-    playRailwayChime(false);
   };
 
   const getDepartmentRole = (department: BlockRequest['department']): UserRole => {

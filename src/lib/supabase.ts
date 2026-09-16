@@ -253,26 +253,26 @@ export const JUDGE_DEMO_CREDENTIALS: Record<
   { id: string; pass: string; label: string; departmentName: string }
 > = {
   ENG_OFFICER: {
-    id: 'ENG_OFFICER',
-    pass: 'ENG@1234',
+    id: 'eng',
+    pass: 'eng@1234',
     label: 'Engineering (P-Way)',
     departmentName: 'Engineering Department Portal',
   },
   ST_OFFICER: {
-    id: 'ST_OFFICER',
-    pass: 'ST@1234',
+    id: 'st',
+    pass: 'st@1234',
     label: 'S&T (Signalling & Telecom)',
     departmentName: 'S&T Department Portal',
   },
   TRD_OFFICER: {
-    id: 'TRD_OFFICER',
-    pass: 'TRD@1234',
+    id: 'trd',
+    pass: 'trd@1234',
     label: 'TRD (Traction Distribution 25kV OHE)',
     departmentName: 'TRD Department Portal',
   },
   SECTION_CONTROLLER: {
-    id: 'MAIN_CONTROL',
-    pass: 'ADMIN@1234',
+    id: 'admin',
+    pass: 'admin@1234',
     label: 'Main Control Admin',
     departmentName: 'Main Control Administration',
   },

@@ -143,7 +143,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
         'Strictly ZERO Approval Authority (Railway Board Rule)',
       ],
       sampleTasks: ['BCM Deep Screening', 'CSM Track Tamping', 'USFD Rail Flaw Testing', 'Turnout Renewal'],
-      credentialsHint: { id: 'ENG_OFFICER', pass: 'ENG@1234' },
+      credentialsHint: { id: 'eng', pass: 'eng@1234' },
     },
     {
       role: 'ST_OFFICER',
@@ -172,7 +172,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
         'Strictly ZERO Approval Authority (Railway Board Rule)',
       ],
       sampleTasks: ['Point Machine Overhaul', 'Axle Counter Tuning', 'Signal Aspect Calibration', 'EI Route Locking'],
-      credentialsHint: { id: 'ST_OFFICER', pass: 'ST@1234' },
+      credentialsHint: { id: 'st', pass: 'st@1234' },
     },
     {
       role: 'TRD_OFFICER',
@@ -201,7 +201,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
         'Strictly ZERO Approval Authority (Railway Board Rule)',
       ],
       sampleTasks: ['25kV Power Block', 'Cantilever Washing', 'Neutral Section Check', 'Tower Wagon Run'],
-      credentialsHint: { id: 'TRD_OFFICER', pass: 'TRD@1234' },
+      credentialsHint: { id: 'trd', pass: 'trd@1234' },
     },
     {
       role: 'SECTION_CONTROLLER',
@@ -230,7 +230,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
         'AI CP-SAT Corridor Bundling & Caution Order Issuance',
       ],
       sampleTasks: ['Corridor Bundling Sanction', 'Caution Order Issuance', 'Punctuality Impact Matrix', 'Emergency Block Control'],
-      credentialsHint: { id: 'MAIN_CONTROL', pass: 'ADMIN@1234' },
+      credentialsHint: { id: 'admin', pass: 'admin@1234' },
     },
   ];
 
