@@ -40,6 +40,7 @@ import {
   setupRealtimeSync,
 } from './lib/supabase';
 import { playRailwayChime, isAudioMuted, setAudioMuted } from './utils/audioAlert';
+import { broadcastScheduleChange } from './services/realtimeSync';
 import { CheckCircle2, Info, X } from 'lucide-react';
 
 const DEFAULT_NOTIFICATIONS: AppNotification[] = [
@@ -554,6 +555,9 @@ export default function App() {
         ? await deleteBlockRequestInSupabase(updatedReq.id)
         : await updateBlockRequestInSupabase(updatedReq);
       if (dbRes.success) {
+        if (updatedReq.status === 'APPROVED' || updatedReq.status === 'MODIFIED_APPROVED') {
+          void broadcastScheduleChange(updatedReq.section, updatedReq.status === 'APPROVED' ? 'APPROVED' : 'RESCHEDULED', updatedReq as unknown as Record<string, unknown>);
+        }
         showToast(`Requisition ${updatedReq.id} ${actionText} & synced to Supabase.`, 'success');
       } else {
         showToast(`Requisition ${updatedReq.id} ${actionText} (Offline cache active).`, 'info');
