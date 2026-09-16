@@ -155,6 +155,8 @@ def solve_schedule(
     section_parameters: Mapping[str, Mapping[str, Any]],
     timetable_parameters: Mapping[str, Sequence[Mapping[str, Any]]],
     time_limit_seconds: float = DEFAULT_TIME_LIMIT_SECONDS,
+    available_time_windows: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+    penalty_weights: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Solve the daily maintenance schedule and return JSON-serializable data."""
     if time_limit_seconds <= 0:
@@ -163,6 +165,10 @@ def solve_schedule(
     defects = [_parse_defect(item) for item in defect_priorities]
     sections = _parse_sections(section_parameters)
     premium_windows = _parse_windows(timetable_parameters.get("premium_train_windows", timetable_parameters))
+    available_windows = _parse_windows(available_time_windows or {})
+    weights = penalty_weights or {}
+    capacity_loss_rate = _as_float(weights.get("capacity_loss", CAPACITY_LOSS_RATE), "capacity_loss")
+    train_detention_rate = _as_float(weights.get("train_detention", 0), "train_detention")
     missing_sections = sorted({defect.section for defect in defects} - sections.keys())
     if missing_sections:
         raise ValueError(f"Missing section parameters: {', '.join(missing_sections)}")
@@ -233,6 +239,15 @@ def solve_schedule(
                 )
 
         for index in indices:
+            allowed = available_windows.get(section_name, [])
+            if allowed:
+                allowed_window_flags = []
+                for window_index, window in enumerate(allowed):
+                    fits_window = model.NewBoolVar(f"fits_window_{index}_{window_index}")
+                    allowed_window_flags.append(fits_window)
+                    model.Add(starts[index] >= window.start_minute).OnlyEnforceIf(fits_window)
+                    model.Add(ends[index] <= window.end_minute).OnlyEnforceIf(fits_window)
+                model.AddBoolOr([*allowed_window_flags, selected[index].Not()])
             for window_index, window in enumerate(premium_windows.get(section_name, [])):
                 before_window = model.NewBoolVar(f"before_premium_{index}_{window_index}")
                 after_window = model.NewBoolVar(f"after_premium_{index}_{window_index}")
@@ -243,8 +258,9 @@ def solve_schedule(
     risk_reward = []
     for index, defect in enumerate(defects):
         reward = int(round(defect.calculated_risk_score * defect.required_duration_mins * OBJECTIVE_SCALE))
-        capacity_penalty = int(round(defect.required_duration_mins * CAPACITY_LOSS_RATE * OBJECTIVE_SCALE))
-        risk_reward.append((reward - capacity_penalty) * selected[index])
+        capacity_penalty = int(round(defect.required_duration_mins * capacity_loss_rate * OBJECTIVE_SCALE))
+        detention_penalty = int(round(defect.required_duration_mins * train_detention_rate * OBJECTIVE_SCALE))
+        risk_reward.append((reward - capacity_penalty - detention_penalty) * selected[index])
     model.Maximize(sum(risk_reward))
 
     solver = cp_model.CpSolver()
@@ -265,7 +281,7 @@ def solve_schedule(
             start = solver.Value(starts[index])
             end = solver.Value(ends[index])
             total_risk += defect.calculated_risk_score * defect.required_duration_mins
-            capacity_loss_penalty += defect.required_duration_mins * CAPACITY_LOSS_RATE
+            capacity_loss_penalty += defect.required_duration_mins * capacity_loss_rate
             scheduled_blocks.append(
                 {
                     "defect_id": defect.defect_id,
@@ -311,6 +327,8 @@ def main() -> int:
             payload["defect_priorities"],
             payload["section_parameters"],
             payload["timetable_parameters"],
+            available_time_windows=payload.get("available_time_windows"),
+            penalty_weights=payload.get("penalty_weights"),
         )
         print(json.dumps(result, indent=2))
         return 0 if result["solver_status"] in {"OPTIMAL", "FEASIBLE"} else 1
