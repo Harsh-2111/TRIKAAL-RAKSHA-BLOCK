@@ -550,7 +550,7 @@ export async function deleteAllBlockRequestsInSupabase(): Promise<{ success: boo
     const { error } = await supabase
       .from('block_requests')
       .delete()
-      .neq('request_data->>id', '');
+      .not('id', 'is', null);
 
     if (error) {
       console.warn('Supabase deleteAllBlockRequests warning:', error.message);

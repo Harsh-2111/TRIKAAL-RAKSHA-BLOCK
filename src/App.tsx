@@ -255,7 +255,7 @@ export default function App() {
 
         if (!isMounted) return;
 
-        if (res.requests && res.requests.length > 0) {
+        if (res.fromSupabase) {
           setAllRequests(res.requests);
           saveStoredRequests(res.requests);
         }
@@ -395,13 +395,8 @@ export default function App() {
       const res = await fetchBlockRequestsFromSupabase();
       if (!isMounted || !res.fromSupabase) return;
 
-      setAllRequests((current) => {
-        const serverIds = new Set(res.requests.map((request) => request.id));
-        const localOnly = current.filter((request) => !serverIds.has(request.id));
-        const merged = [...localOnly, ...res.requests];
-        saveStoredRequests(merged);
-        return merged;
-      });
+      setAllRequests(res.requests);
+      saveStoredRequests(res.requests);
 
       setSyncState((previous) => ({
         ...previous,
@@ -423,7 +418,7 @@ export default function App() {
   const handleForceResync = async () => {
     try {
       const res = await fetchBlockRequestsFromSupabase();
-      if (res.requests && res.requests.length > 0) {
+      if (res.fromSupabase) {
         setAllRequests(res.requests);
         saveStoredRequests(res.requests);
       }
