@@ -1,12 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import {
-  AlertTriangle,
-  Clock3,
-  Filter,
-  Layers3,
-} from 'lucide-react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Filter, Layers3, ShieldAlert, X } from 'lucide-react';
 import { BlockRequest, BlockStatus, Department, RailwayZoneCode, User } from '../types';
-import { DEPARTMENT_CONFIG } from '../data/mockData';
 
 interface GanttChartProps {
   currentUser: User;
@@ -16,278 +10,94 @@ interface GanttChartProps {
 }
 
 type StatusFilter = 'ALL' | BlockStatus | 'OPTIMIZED';
+type Horizon = 'DAY' | 'WEEK' | 'MONTH';
+type DragMode = 'MOVE' | 'RESIZE_START' | 'RESIZE_END';
+interface TimelineWindow { start: number; end: number; }
+interface EditedWindow extends TimelineWindow { date: string; }
 
-const TIME_LABELS = Array.from({ length: 24 }, (_, index) => `${String(index).padStart(2, '0')}:00`);
 const DEPARTMENTS: Array<'ALL' | Department> = ['ALL', 'ENGINEERING', 'ST', 'TRD'];
+const DAILY_CAPACITY_MINS = 360;
 const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
-  { value: 'ALL', label: 'All statuses' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'APPROVED', label: 'Approved' },
-  { value: 'MODIFIED_APPROVED', label: 'Modified approved' },
-  { value: 'REJECTED', label: 'Rejected' },
-  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'ALL', label: 'All statuses' }, { value: 'PENDING', label: 'Pending' },
+  { value: 'APPROVED', label: 'Approved' }, { value: 'MODIFIED_APPROVED', label: 'Modified approved' },
+  { value: 'REJECTED', label: 'Rejected' }, { value: 'COMPLETED', label: 'Completed' },
   { value: 'OPTIMIZED', label: 'AI optimized' },
 ];
 
 const timeToMinutes = (value: string): number => {
   const [hours, minutes] = (value || '00:00').split(':').map(Number);
-  return (hours || 0) * 60 + (minutes || 0);
+  return Math.max(0, Math.min(1440, (hours || 0) * 60 + (minutes || 0)));
+};
+const minutesToTime = (value: number): string => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+const formatHours = (minutes: number): string => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+const dateToKey = (date: Date): string => date.toISOString().slice(0, 10);
+const dateFromKey = (key: string): Date => new Date(`${key || dateToKey(new Date())}T00:00:00`);
+const addDays = (key: string, days: number): string => { const date = dateFromKey(key); date.setDate(date.getDate() + days); return dateToKey(date); };
+const displayDate = (key: string, options?: Intl.DateTimeFormatOptions): string => dateFromKey(key).toLocaleDateString('en-IN', options || { day: '2-digit', month: 'short' });
+const normalizeSection = (value: string): string => (value || '').toLowerCase().replace(/section/g, '').replace(/[^a-z0-9]/g, '').trim();
+const departmentLabel = (department: Department): string => department === 'ENGINEERING' ? 'ENG' : department === 'ST' ? 'S&T' : 'TRD';
+const statusClasses = (status: BlockStatus): string => ({ APPROVED: 'bg-emerald-500 border-emerald-700', MODIFIED_APPROVED: 'bg-blue-500 border-blue-700', COMPLETED: 'bg-teal-500 border-teal-700', REJECTED: 'bg-red-500 border-red-700', PENDING: 'bg-amber-400 border-amber-600' }[status]);
+
+const getRequestWindow = (request: BlockRequest): TimelineWindow => {
+  const start = timeToMinutes(request.approvedStartTime || request.requestedStartTime || '00:00');
+  let end = timeToMinutes(request.approvedEndTime || request.requestedEndTime || '01:00');
+  if (end <= start) end = Math.min(1440, start + Math.max(request.durationMinutes || 60, 15));
+  return { start, end };
+};
+const getRiskScore = (request: BlockRequest): number => {
+  const candidate = request as BlockRequest & { calculatedRiskScore?: number; mlRiskScore?: number };
+  return candidate.calculatedRiskScore ?? candidate.mlRiskScore ?? (request.priority === 'SAFETY_CRITICAL' ? 95 : request.priority === 'URGENT' ? 75 : 45);
+};
+const trainConflict = (request: BlockRequest, window: TimelineWindow): string | null => {
+  const trainWindows = [{ section: 'NDLS-GZB', start: 480, end: 540, label: 'Rajdhani Express #12301' }, { section: 'NDLS-PWL', start: 1080, end: 1140, label: 'Shatabdi Express #12001' }];
+  const section = normalizeSection(request.section);
+  return trainWindows.find((train) => normalizeSection(train.section) === section && Math.max(window.start, train.start) < Math.min(window.end, train.end))?.label || null;
 };
 
-const normalizeSection = (value: string): string => {
-  return (value || '').toLowerCase().replace(/section/g, '').replace(/[^a-z0-9]/g, '').trim();
-};
+const Metric: React.FC<{ label: string; value: string | number; warning?: boolean }> = ({ label, value, warning }) => <div className={`rounded border px-2 py-1.5 ${warning ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}><div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</div><div className={`mt-0.5 text-sm font-bold ${warning ? 'text-red-700' : 'text-slate-900'}`}>{value}</div></div>;
+const DepartmentBadge: React.FC<{ department: Department }> = ({ department }) => <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${department === 'ENGINEERING' ? 'bg-blue-100 text-blue-800' : department === 'ST' ? 'bg-violet-100 text-violet-800' : 'bg-orange-100 text-orange-800'}`}>{departmentLabel(department)}</span>;
 
-const formatHours = (minutes: number): string => {
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return `${hours}h ${remainingMinutes}m`;
-};
-
-const statusLabel = (status: BlockStatus): string => {
-  if (status === 'MODIFIED_APPROVED') return 'Modified approved';
-  return status.charAt(0) + status.slice(1).toLowerCase();
-};
-
-const statusClasses = (status: BlockStatus): string => {
-  switch (status) {
-    case 'APPROVED':
-      return 'bg-emerald-500 border-emerald-700';
-    case 'MODIFIED_APPROVED':
-      return 'bg-blue-500 border-blue-700';
-    case 'COMPLETED':
-      return 'bg-teal-500 border-teal-700';
-    case 'REJECTED':
-      return 'bg-red-500 border-red-700';
-    default:
-      return 'bg-amber-400 border-amber-600';
-  }
-};
-
-const departmentLabel = (department: Department): string => {
-  if (department === 'ENGINEERING') return 'Engineering';
-  if (department === 'ST') return 'S&T';
-  return 'TRD';
-};
-
-export const GanttChart: React.FC<GanttChartProps> = ({
-  currentUser,
-  allRequests,
-  activeZone = 'ALL',
-  onViewRequestDetail,
-}) => {
+export const GanttChart: React.FC<GanttChartProps> = ({ currentUser, allRequests, activeZone = 'ALL', onViewRequestDetail }) => {
+  const [horizon, setHorizon] = useState<Horizon>('DAY');
   const [selectedDepartment, setSelectedDepartment] = useState<'ALL' | Department>('ALL');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>('ALL');
   const [selectedSection, setSelectedSection] = useState('ALL');
   const [selectedPriority, setSelectedPriority] = useState('ALL');
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [editedWindows, setEditedWindows] = useState<Record<string, EditedWindow>>({});
 
-  const scopedRequests = useMemo(() => {
-    return allRequests.filter((request) => {
-      if (currentUser.role !== 'SECTION_CONTROLLER' && request.department !== currentUser.department) return false;
-      if (activeZone !== 'ALL' && request.zoneCode && request.zoneCode !== activeZone) return false;
-      return true;
-    });
-  }, [allRequests, currentUser, activeZone]);
+  const scopedRequests = useMemo(() => allRequests.filter((request) => (currentUser.role === 'SECTION_CONTROLLER' || request.department === currentUser.department) && (activeZone === 'ALL' || !request.zoneCode || request.zoneCode === activeZone)), [allRequests, currentUser, activeZone]);
+  const dates = useMemo(() => Array.from(new Set(scopedRequests.map((request) => request.requestedDate).filter(Boolean))).sort(), [scopedRequests]);
+  const effectiveDate = selectedDate || dates[0] || dateToKey(new Date());
+  const sections = useMemo(() => Array.from(new Set(scopedRequests.map((request) => request.section).filter(Boolean))).sort(), [scopedRequests]);
+  const filteredRequests = useMemo(() => scopedRequests.filter((request) => (selectedDepartment === 'ALL' || request.department === selectedDepartment) && (selectedStatus === 'ALL' || (selectedStatus === 'OPTIMIZED' ? Boolean(request.aiOptimized) : request.status === selectedStatus)) && (selectedSection === 'ALL' || request.section === selectedSection) && (selectedPriority === 'ALL' || request.priority === selectedPriority) && (horizon !== 'DAY' || request.requestedDate === effectiveDate)), [scopedRequests, selectedDepartment, selectedStatus, selectedSection, selectedPriority, horizon, effectiveDate]);
+  const backlog = useMemo(() => scopedRequests.filter((request) => request.requestedDate < dateToKey(new Date()) && (request.status === 'PENDING' || request.status === 'REJECTED' || request.controllerRemarks?.toLowerCase().includes('deferred'))), [scopedRequests]);
+  const conflictIds = useMemo(() => new Set(filteredRequests.filter((request) => trainConflict(request, editedWindows[request.id] || getRequestWindow(request))).map((request) => request.id)), [filteredRequests, editedWindows]);
+  const totalMinutes = filteredRequests.reduce((sum, request) => sum + (request.durationMinutes || getRequestWindow(request).end - getRequestWindow(request).start), 0);
+  const selectedRequest = filteredRequests.find((request) => request.id === selectedBlockId) || scopedRequests.find((request) => request.id === selectedBlockId);
 
-  const dates = useMemo(
-    () => Array.from(new Set(scopedRequests.map((request) => request.requestedDate).filter(Boolean))).sort(),
-    [scopedRequests]
-  );
-  const effectiveDate = selectedDate && dates.includes(selectedDate) ? selectedDate : dates[0] || selectedDate;
-
-  const sections = useMemo(
-    () => Array.from(new Set(scopedRequests.map((request) => request.section).filter(Boolean))).sort(),
-    [scopedRequests]
-  );
-
-  const filteredRequests = useMemo(() => {
-    return scopedRequests.filter((request) => {
-      const matchesDepartment = selectedDepartment === 'ALL' || request.department === selectedDepartment;
-      const matchesDate = request.requestedDate === effectiveDate;
-      const matchesStatus =
-        selectedStatus === 'ALL' ||
-        (selectedStatus === 'OPTIMIZED' ? Boolean(request.aiOptimized) : request.status === selectedStatus);
-      const matchesSection = selectedSection === 'ALL' || request.section === selectedSection;
-      const matchesPriority = selectedPriority === 'ALL' || request.priority === selectedPriority;
-      return matchesDepartment && matchesDate && matchesStatus && matchesSection && matchesPriority;
-    });
-  }, [scopedRequests, selectedDepartment, effectiveDate, selectedStatus, selectedSection, selectedPriority]);
-
-  const conflictIds = useMemo(() => {
-    const conflicts = new Set<string>();
-    const pendingRequests = filteredRequests.filter((request) => request.status === 'PENDING');
-
-    for (let index = 0; index < pendingRequests.length; index += 1) {
-      for (let nextIndex = index + 1; nextIndex < pendingRequests.length; nextIndex += 1) {
-        const left = pendingRequests[index];
-        const right = pendingRequests[nextIndex];
-        const leftSection = normalizeSection(left.section);
-        const rightSection = normalizeSection(right.section);
-        const sameSection =
-          leftSection === rightSection ||
-          leftSection.includes(rightSection) ||
-          rightSection.includes(leftSection) ||
-          (left.stationFrom && right.stationFrom &&
-            left.stationFrom.toLowerCase().trim() === right.stationFrom.toLowerCase().trim() &&
-            left.stationTo.toLowerCase().trim() === right.stationTo.toLowerCase().trim());
-        if (!sameSection) continue;
-        const leftStart = timeToMinutes(left.requestedStartTime);
-        const rightStart = timeToMinutes(right.requestedStartTime);
-        let leftEnd = timeToMinutes(left.requestedEndTime);
-        let rightEnd = timeToMinutes(right.requestedEndTime);
-        if (leftEnd <= leftStart) leftEnd += 1440;
-        if (rightEnd <= rightStart) rightEnd += 1440;
-        if (Math.max(leftStart, rightStart) < Math.min(leftEnd, rightEnd)) {
-          conflicts.add(left.id);
-          conflicts.add(right.id);
-        }
-      }
-    }
-    return conflicts;
-  }, [filteredRequests]);
-
-  const metrics = useMemo(() => {
-    const totalMinutes = filteredRequests.reduce((sum, request) => sum + (request.durationMinutes || 0), 0);
-    return {
-      total: filteredRequests.length,
-      active: filteredRequests.filter((request) => request.status === 'PENDING' || request.status === 'APPROVED' || request.status === 'MODIFIED_APPROVED').length,
-      completed: filteredRequests.filter((request) => request.status === 'COMPLETED').length,
-      conflicts: Array.from(conflictIds).length,
-      totalMinutes,
-    };
-  }, [filteredRequests, conflictIds]);
-
-  return (
-    <section className="mb-6 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" aria-labelledby="gantt-chart-title">
-      <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-4 sm:px-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#000075] text-white">
-              <Layers3 className="h-5 w-5 text-amber-300" />
-            </div>
-            <div className="min-w-0">
-              <h2 id="gantt-chart-title" className="text-base font-bold text-slate-900">Gantt Chart</h2>
-              <p className="mt-0.5 text-xs text-slate-500">24-hour block schedule from live requisition data</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <Metric label="Total blocks" value={metrics.total} />
-            <Metric label="Active" value={metrics.active} />
-            <Metric label="Completed" value={metrics.completed} />
-            <Metric label="Conflicts" value={metrics.conflicts} warning={metrics.conflicts > 0} />
-            <Metric label="Scheduled time" value={formatHours(metrics.totalMinutes)} wide />
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="text-[11px] font-semibold text-slate-500">
-            Department
-            <select value={selectedDepartment} onChange={(event) => setSelectedDepartment(event.target.value as 'ALL' | Department)} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
-              {DEPARTMENTS.map((department) => <option key={department} value={department}>{department === 'ALL' ? 'All departments' : departmentLabel(department)}</option>)}
-            </select>
-          </label>
-          <label className="text-[11px] font-semibold text-slate-500">
-            Date
-            <select value={effectiveDate} onChange={(event) => setSelectedDate(event.target.value)} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
-              {dates.length === 0 ? <option value="">No dates available</option> : dates.map((date) => <option key={date} value={date}>{date}</option>)}
-            </select>
-          </label>
-          <label className="text-[11px] font-semibold text-slate-500">
-            Status
-            <select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value as StatusFilter)} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
-              {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label className="text-[11px] font-semibold text-slate-500">
-            Section
-            <select value={selectedSection} onChange={(event) => setSelectedSection(event.target.value)} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
-              <option value="ALL">All sections</option>
-              {sections.map((section) => <option key={section} value={section}>{section}</option>)}
-            </select>
-          </label>
-          <label className="text-[11px] font-semibold text-slate-500">
-            Priority
-            <select value={selectedPriority} onChange={(event) => setSelectedPriority(event.target.value)} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
-              <option value="ALL">All priorities</option>
-              <option value="SAFETY_CRITICAL">Safety critical</option>
-              <option value="URGENT">Urgent</option>
-              <option value="ROUTINE_PLANNED">Routine planned</option>
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <div className="p-3 sm:p-5">
-        <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
-          <span className="inline-flex items-center gap-1 font-semibold"><Filter className="h-3.5 w-3.5" /> Click a bar for details</span>
-          <Legend color="bg-amber-400" label="Pending" />
-          <Legend color="bg-emerald-500" label="Approved" />
-          <Legend color="bg-blue-500" label="Modified" />
-          <Legend color="bg-red-500" label="Rejected" />
-          <Legend color="bg-teal-500" label="Completed" />
-          <span className="inline-flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5 text-red-600" /> Conflict</span>
-        </div>
-
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <div className="min-w-[1120px]">
-            <div className="grid grid-cols-[250px_minmax(870px,1fr)] border-b border-slate-200 bg-slate-50">
-              <div className="border-r border-slate-200 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Block request</div>
-              <div className="relative grid" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
-                {TIME_LABELS.map((label) => <div key={label} className="border-r border-slate-200 px-1 py-2 text-center font-mono text-[10px] text-slate-500">{label}</div>)}
-              </div>
-            </div>
-
-            {filteredRequests.length === 0 ? (
-              <div className="px-4 py-10 text-center text-sm text-slate-500">No block requests match the selected filters.</div>
-            ) : (
-              filteredRequests.map((request) => <GanttRow key={request.id} request={request} hasConflict={conflictIds.has(request.id)} onViewRequestDetail={onViewRequestDetail} />)
-            )}
-          </div>
-        </div>
-        <p className="mt-2 text-[11px] text-slate-400">Timeline uses the current request window, or the approved/modified window when one exists. AI optimized requests retain their optimized schedule fields.</p>
-      </div>
-    </section>
-  );
-};
-
-const Metric: React.FC<{ label: string; value: string | number; warning?: boolean; wide?: boolean }> = ({ label, value, warning, wide }) => (
-  <div className={`rounded border px-2 py-1.5 ${warning ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'} ${wide ? 'col-span-2 sm:col-span-1' : ''}`}>
-    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</div>
-    <div className={`mt-0.5 text-sm font-bold ${warning ? 'text-red-700' : 'text-slate-900'}`}>{value}</div>
-  </div>
-);
-
-const Legend: React.FC<{ color: string; label: string }> = ({ color, label }) => <span className="inline-flex items-center gap-1"><span className={`h-2.5 w-2.5 rounded-sm ${color}`} />{label}</span>;
-
-const GanttRow: React.FC<{ request: BlockRequest; hasConflict: boolean; onViewRequestDetail: (request: BlockRequest) => void }> = ({ request, hasConflict, onViewRequestDetail }) => {
-  const start = request.approvedStartTime || request.requestedStartTime || '00:00';
-  const end = request.approvedEndTime || request.requestedEndTime || '01:00';
-  const startMinutes = Math.max(0, Math.min(1440, timeToMinutes(start)));
-  let endMinutes = timeToMinutes(end);
-  if (endMinutes <= startMinutes) endMinutes += 1440;
-  endMinutes = Math.min(1440, endMinutes);
-  const left = (startMinutes / 1440) * 100;
-  const width = Math.max(((endMinutes - startMinutes) / 1440) * 100, 1.5);
-  const departmentConfig = DEPARTMENT_CONFIG[request.department];
-
-  return (
-    <div className="grid grid-cols-[250px_minmax(870px,1fr)] border-b border-slate-100 last:border-b-0">
-      <button type="button" onClick={() => onViewRequestDetail(request)} className="min-w-0 border-r border-slate-200 bg-white px-3 py-2 text-left hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500">
-        <div className="flex items-center gap-1.5">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${departmentConfig?.badgeBg || 'bg-slate-300'}`} />
-          <span className="truncate font-mono text-xs font-bold text-blue-950">{request.id}</span>
-          {request.aiOptimized && <span className="shrink-0 rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-bold text-indigo-800">AI</span>}
-        </div>
-        <div className="mt-1 truncate text-[10px] text-slate-500">{departmentLabel(request.department)} · {request.section}</div>
-        <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-500"><Clock3 className="h-3 w-3" />{start} - {end} · {request.durationMinutes || 0}m</div>
-      </button>
-      <div className="relative bg-white" style={{ backgroundImage: 'linear-gradient(to right, rgba(148,163,184,.18) 1px, transparent 1px)', backgroundSize: `${100 / 24}% 100%` }}>
-        <button type="button" onClick={() => onViewRequestDetail(request)} aria-label={`Open ${request.id}`} className={`absolute top-3 h-8 min-w-[24px] rounded border px-2 text-left text-[10px] font-bold text-white shadow-sm transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-blue-500 ${statusClasses(request.status)} ${hasConflict ? 'ring-2 ring-red-600 ring-offset-1' : ''}`} style={{ left: `${left}%`, width: `${width}%` }}>
-          <span className="block truncate">{statusLabel(request.status)}{request.aiOptimized ? ' · AI' : ''}</span>
-        </button>
-        {hasConflict && <div className="absolute right-1 top-1 text-red-600" title="Overlapping pending block"><AlertTriangle className="h-3.5 w-3.5" /></div>}
-      </div>
+  return <section className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="gantt-chart-title">
+    <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-4 sm:px-5"><div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between"><div className="flex min-w-0 items-start gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#000075] text-white"><Layers3 className="h-5 w-5 text-amber-300" /></div><div><h2 id="gantt-chart-title" className="text-base font-bold text-slate-900">Maintenance Planning</h2><p className="mt-0.5 text-xs text-slate-500">Interactive block occupancy, workload, and backlog control</p></div></div><div className="flex items-center rounded-lg border border-slate-300 bg-white p-1">{(['DAY', 'WEEK', 'MONTH'] as Horizon[]).map((mode) => <button key={mode} type="button" onClick={() => setHorizon(mode)} className={`px-3 py-1.5 text-[11px] font-bold ${horizon === mode ? 'rounded bg-[#000075] text-white' : 'text-slate-500 hover:text-slate-900'}`}>{mode === 'DAY' ? 'Daily' : mode === 'WEEK' ? 'Weekly' : 'Monthly'}</button>)}</div></div>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5"><Metric label="Visible blocks" value={filteredRequests.length} /><Metric label="Backlog" value={backlog.length} warning={backlog.length > 0} /><Metric label="Conflict blocks" value={conflictIds.size} warning={conflictIds.size > 0} /><Metric label="Scheduled hours" value={formatHours(totalMinutes)} /><Metric label="Sections" value={sections.length} /></div>
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5"><Select label="Department" value={selectedDepartment} onChange={(value) => setSelectedDepartment(value as 'ALL' | Department)} options={DEPARTMENTS.map((value) => ({ value, label: value === 'ALL' ? 'All departments' : departmentLabel(value) }))} /><Select label="Anchor date" value={effectiveDate} onChange={setSelectedDate} options={dates.map((value) => ({ value, label: displayDate(value, { weekday: 'short', day: '2-digit', month: 'short' }) }))} /><Select label="Status" value={selectedStatus} onChange={(value) => setSelectedStatus(value as StatusFilter)} options={STATUS_OPTIONS} /><Select label="Section" value={selectedSection} onChange={setSelectedSection} options={[{ value: 'ALL', label: 'All sections' }, ...sections.map((value) => ({ value, label: value }))]} /><Select label="Priority" value={selectedPriority} onChange={setSelectedPriority} options={[{ value: 'ALL', label: 'All priorities' }, { value: 'SAFETY_CRITICAL', label: 'Safety critical' }, { value: 'URGENT', label: 'Urgent' }, { value: 'ROUTINE_PLANNED', label: 'Routine planned' }]} /></div>
     </div>
-  );
+    <div className="grid gap-4 p-3 sm:p-5 xl:grid-cols-[minmax(0,1fr)_280px]"><div className="min-w-0"><div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-500"><span className="inline-flex items-center gap-1 font-semibold"><Filter className="h-3.5 w-3.5" /> Select a block for details</span><DepartmentBadge department="ENGINEERING" /><DepartmentBadge department="ST" /><DepartmentBadge department="TRD" /></div>{horizon === 'DAY' && <DayView requests={filteredRequests} date={effectiveDate} editedWindows={editedWindows} conflictIds={conflictIds} selectedBlockId={selectedBlockId} onSelect={setSelectedBlockId} onEdit={setEditedWindows} onView={onViewRequestDetail} />}{horizon === 'WEEK' && <WeekView requests={scopedRequests} anchor={effectiveDate} onSelect={setSelectedBlockId} />}{horizon === 'MONTH' && <MonthView requests={scopedRequests} anchor={effectiveDate} onSelect={setSelectedBlockId} />}</div><div className="space-y-4">{selectedRequest && <DetailCard request={selectedRequest} window={editedWindows[selectedRequest.id] || getRequestWindow(selectedRequest)} conflict={conflictIds.has(selectedRequest.id)} onClose={() => setSelectedBlockId(null)} onView={() => onViewRequestDetail(selectedRequest)} />}<BacklogPanel requests={backlog} onSelect={setSelectedBlockId} /></div></div>
+  </section>;
 };
+
+const Select: React.FC<{ label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }> = ({ label, value, onChange, options }) => <label className="text-[11px] font-semibold text-slate-500">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">{options.length ? options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>) : <option value="">No data</option>}</select></label>;
+
+const DayView: React.FC<{ requests: BlockRequest[]; date: string; editedWindows: Record<string, EditedWindow>; conflictIds: Set<string>; selectedBlockId: string | null; onSelect: (id: string) => void; onEdit: React.Dispatch<React.SetStateAction<Record<string, EditedWindow>>>; onView: (request: BlockRequest) => void }> = ({ requests, date, editedWindows, conflictIds, selectedBlockId, onSelect, onEdit, onView }) => { const tracks: Record<string, BlockRequest[]> = {}; requests.forEach((request) => { (tracks[request.section] ||= []).push(request); }); return <div className="overflow-x-auto rounded-lg border border-slate-200"><div className="min-w-[1500px]"><div className="grid grid-cols-[190px_minmax(1240px,1fr)] border-b border-slate-200 bg-slate-50"><div className="border-r border-slate-200 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">Section / track</div><div className="grid" style={{ gridTemplateColumns: 'repeat(96, minmax(0, 1fr))' }}>{Array.from({ length: 96 }, (_, index) => <div key={index} className={`border-r border-slate-200 py-2 text-center font-mono text-[8px] text-slate-500 ${index % 4 ? 'text-transparent' : ''}`}>{index % 4 === 0 ? `${String(index / 4).padStart(2, '0')}:00` : '-'}</div>)}</div></div>{(Object.entries(tracks) as Array<[string, BlockRequest[]]>).map(([section, sectionRequests]) => <div key={section} className="grid grid-cols-[190px_minmax(1240px,1fr)] border-b border-slate-100"><div className="border-r border-slate-200 bg-slate-50/50 px-3 py-3"><div className="font-mono text-xs font-bold text-blue-950">{section}</div><div className="mt-1 text-[10px] text-slate-500">{sectionRequests.length} blocks - {date}</div></div><div className="relative min-h-[68px] bg-white" style={{ backgroundImage: 'linear-gradient(to right, rgba(148,163,184,.18) 1px, transparent 1px)', backgroundSize: `${100 / 96}% 100%` }}>{sectionRequests.map((request, index) => <InteractiveBlock key={request.id} request={request} track={index + 1} window={editedWindows[request.id] || getRequestWindow(request)} hasConflict={conflictIds.has(request.id)} selected={selectedBlockId === request.id} onSelect={onSelect} onEdit={onEdit} onView={onView} />)}</div></div>)}{!requests.length && <div className="px-4 py-10 text-center text-sm text-slate-500">No blocks match the selected filters.</div>}</div></div>; };
+
+const InteractiveBlock: React.FC<{ request: BlockRequest; track: number; window: TimelineWindow; hasConflict: boolean; selected: boolean; onSelect: (id: string) => void; onEdit: React.Dispatch<React.SetStateAction<Record<string, EditedWindow>>>; onView: (request: BlockRequest) => void }> = ({ request, track, window, hasConflict, selected, onSelect, onEdit, onView }) => { const [drag, setDrag] = useState<{ mode: DragMode; originX: number; start: number; end: number } | null>(null); useEffect(() => { if (!drag) return undefined; const move = (event: MouseEvent) => { const delta = Math.round(((event.clientX - drag.originX) / 1240) * 1440 / 15) * 15; let start = drag.start; let end = drag.end; if (drag.mode === 'MOVE') { start += delta; end += delta; } if (drag.mode === 'RESIZE_START') start = Math.min(drag.end - 15, drag.start + delta); if (drag.mode === 'RESIZE_END') end = Math.max(drag.start + 15, drag.end + delta); if (start < 0 || end > 1440) return; onEdit((current) => ({ ...current, [request.id]: { start, end, date: request.requestedDate } })); }; const stop = () => setDrag(null); globalThis.window.addEventListener('mousemove', move); globalThis.window.addEventListener('mouseup', stop); return () => { globalThis.window.removeEventListener('mousemove', move); globalThis.window.removeEventListener('mouseup', stop); }; }, [drag, onEdit, request.id, request.requestedDate]); const left = `${(window.start / 1440) * 100}%`; const width = `${Math.max(((window.end - window.start) / 1440) * 100, 1.2)}%`; const conflictLabel = trainConflict(request, window); return <button type="button" title={conflictLabel ? `Timetable Conflict: ${conflictLabel}` : `${request.id} - drag to move, handles resize`} onClick={() => onSelect(request.id)} onDoubleClick={() => onView(request)} onMouseDown={(event) => { if (event.button === 0) { event.preventDefault(); setDrag({ mode: 'MOVE', originX: event.clientX, start: window.start, end: window.end }); } }} className={`absolute h-9 rounded border px-1.5 text-left text-[9px] font-bold text-white shadow-sm transition hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-blue-500 ${statusClasses(request.status)} ${hasConflict ? 'border-red-900 bg-red-600 ring-2 ring-red-500 ring-offset-1' : ''} ${selected ? 'z-20 ring-2 ring-slate-900 ring-offset-1' : 'z-10'}`} style={{ left, width, top: `${8 + ((track - 1) % 2) * 34}px` }}><span className="absolute -left-1 top-1/2 z-20 h-5 w-1 -translate-y-1/2 cursor-ew-resize rounded bg-white/70" onMouseDown={(event) => { event.stopPropagation(); setDrag({ mode: 'RESIZE_START', originX: event.clientX, start: window.start, end: window.end }); }} /><span className="block truncate">{request.id} - {departmentLabel(request.department)}</span><span className="block truncate font-normal">{minutesToTime(window.start)}-{minutesToTime(window.end)}</span><span className="absolute -right-1 top-1/2 z-20 h-5 w-1 -translate-y-1/2 cursor-ew-resize rounded bg-white/70" onMouseDown={(event) => { event.stopPropagation(); setDrag({ mode: 'RESIZE_END', originX: event.clientX, start: window.start, end: window.end }); }} />{conflictLabel && <ShieldAlert className="absolute -right-3 -top-3 h-4 w-4 rounded-full bg-white text-red-600" />}</button>; };
+
+const WeekView: React.FC<{ requests: BlockRequest[]; anchor: string; onSelect: (id: string) => void }> = ({ requests, anchor, onSelect }) => <div className="grid gap-2 md:grid-cols-7">{Array.from({ length: 7 }, (_, index) => { const date = addDays(anchor, index); const dayRequests = requests.filter((request) => request.requestedDate === date); const minutes = dayRequests.reduce((sum, request) => sum + (request.durationMinutes || 0), 0); const departments = Array.from(new Set(dayRequests.map((request) => request.department))); return <div key={date} className="min-h-[170px] rounded-lg border border-slate-200 bg-slate-50/60 p-2"><div className="border-b border-slate-200 pb-2"><div className="text-[10px] font-bold uppercase text-slate-500">{displayDate(date, { weekday: 'short' })}</div><div className="font-mono text-xs font-bold text-slate-900">{displayDate(date)}</div></div><div className="mt-2 text-lg font-bold text-blue-950">{formatHours(minutes)}</div><div className="text-[10px] text-slate-500">scheduled workload</div><div className="mt-1 text-[10px] font-semibold text-amber-700">capacity impact {Math.min(100, Math.round((minutes / DAILY_CAPACITY_MINS) * 100))}%</div><div className="mt-2 flex flex-wrap gap-1">{departments.map((department) => <DepartmentBadge key={department} department={department} />)}</div><div className="mt-3 space-y-1">{dayRequests.slice(0, 3).map((request) => <button key={request.id} type="button" onClick={() => onSelect(request.id)} className="block w-full truncate rounded bg-white px-1.5 py-1 text-left text-[10px] text-slate-700 shadow-sm hover:bg-blue-50">{request.id}</button>)}</div>{dayRequests.length > 3 && <div className="mt-1 text-[10px] text-slate-400">+{dayRequests.length - 3} more</div>}</div>; })}</div>;
+
+const MonthView: React.FC<{ requests: BlockRequest[]; anchor: string; onSelect: (id: string) => void }> = ({ requests, anchor, onSelect }) => <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200">{Array.from({ length: 28 }, (_, index) => { const date = addDays(anchor, index); const dayRequests = requests.filter((request) => request.requestedDate === date); const minutes = dayRequests.reduce((sum, request) => sum + (request.durationMinutes || 0), 0); const conflict = dayRequests.some((request) => trainConflict(request, getRequestWindow(request))) || minutes > DAILY_CAPACITY_MINS; return <button key={date} type="button" onClick={() => dayRequests[0] && onSelect(dayRequests[0].id)} className={`min-h-[94px] bg-white p-2 text-left hover:bg-blue-50 ${conflict ? 'bg-red-50 ring-1 ring-inset ring-red-300' : ''}`}><div className="flex items-center justify-between"><span className="text-[10px] font-bold text-slate-500">{displayDate(date, { weekday: 'short', day: '2-digit' })}</span>{conflict && <AlertTriangle className="h-3.5 w-3.5 text-red-600" />}</div><div className={`mt-3 text-sm font-bold ${conflict ? 'text-red-700' : 'text-blue-950'}`}>{formatHours(minutes)}</div><div className="text-[10px] text-slate-400">{dayRequests.length} blocks</div></button>; })}</div>;
+
+const DetailCard: React.FC<{ request: BlockRequest; window: TimelineWindow; conflict: boolean; onClose: () => void; onView: () => void }> = ({ request, window, conflict, onClose, onView }) => { const candidate = request as BlockRequest & { shapDrivers?: Array<{ feature: string; contribution: number }>; calculatedRiskScore?: number; mlRiskScore?: number }; const drivers = candidate.shapDrivers || []; const risk = getRiskScore(request); return <div className={`rounded-lg border p-3 ${conflict ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white'}`}><div className="flex items-start justify-between"><div><div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Selected block</div><div className="font-mono text-sm font-bold text-blue-950">{request.id}</div></div><button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-800" aria-label="Close details"><X className="h-4 w-4" /></button></div><div className="mt-3 grid grid-cols-2 gap-2 text-[11px]"><span>ML risk <strong className="text-red-700">{risk.toFixed(1)}</strong></span><span>Window <strong>{minutesToTime(window.start)}-{minutesToTime(window.end)}</strong></span><span>Department <strong>{departmentLabel(request.department)}</strong></span><span>Train status <strong className={conflict ? 'text-red-700' : 'text-emerald-700'}>{conflict ? 'Conflict' : 'Clear'}</strong></span></div>{conflict && <div className="mt-3 rounded border border-red-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-red-700">Timetable Conflict: {trainConflict(request, window)}</div>}<div className="mt-3"><div className="text-[10px] font-bold uppercase text-slate-400">SHAP feature drivers</div>{drivers.length ? drivers.slice(0, 3).map((driver) => <div key={driver.feature} className="mt-1 flex justify-between text-[11px] text-slate-600"><span>{driver.feature}</span><strong>{driver.contribution.toFixed(2)}</strong></div>) : <div className="mt-1 text-[11px] text-slate-400">Drivers will appear after ML scoring.</div>}</div><button type="button" onClick={onView} className="mt-3 w-full rounded bg-[#000075] px-2 py-1.5 text-[11px] font-bold text-white hover:bg-blue-900">Open request detail</button></div>; };
+
+const BacklogPanel: React.FC<{ requests: BlockRequest[]; onSelect: (id: string) => void }> = ({ requests, onSelect }) => <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3"><div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-600" /><h3 className="text-xs font-bold text-amber-950">Unscheduled Maintenance Backlog</h3></div><p className="mt-1 text-[10px] text-amber-800">Past-date requests needing rescheduling or controller review.</p>{requests.length ? <div className="mt-3 space-y-1.5">{requests.map((request) => <button key={request.id} type="button" onClick={() => onSelect(request.id)} className="flex w-full items-center justify-between rounded border border-amber-200 bg-white px-2 py-1.5 text-left hover:bg-amber-100"><span className="min-w-0 truncate font-mono text-[10px] font-bold text-slate-800">{request.id}</span><span className="ml-2 shrink-0 text-[10px] text-amber-700">{request.requestedDate}</span></button>)}</div> : <div className="mt-3 rounded border border-emerald-200 bg-white px-2 py-2 text-[10px] text-emerald-700">No deferred maintenance blocks.</div>}</div>;
+
+
