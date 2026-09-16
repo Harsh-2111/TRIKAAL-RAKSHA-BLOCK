@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { LoginPortal } from './components/LoginPortal';
 import { DepartmentDashboard } from './components/DepartmentDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
-import { LiveAnalyticsMapDashboard } from './components/LiveAnalyticsMapDashboard';
-import { GanttChart } from './components/GanttChart';
+const LiveAnalyticsMapDashboard = lazy(() => import('./components/LiveAnalyticsMapDashboard').then((module) => ({ default: module.LiveAnalyticsMapDashboard })));
+const GanttChart = lazy(() => import('./components/GanttChart').then((module) => ({ default: module.GanttChart })));
 import { NewRequestModal } from './components/NewRequestModal';
 import { RequestDetailModal } from './components/RequestDetailModal';
 import { AdminActionModal } from './components/AdminActionModal';
@@ -720,22 +720,26 @@ export default function App() {
         <main className="flex-1 w-full max-w-[1800px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-4 sm:py-6">
           {activeNavTab === 'MAP_ANALYTICS' ? (
             /* Live Analytics & Satellite Geographic Map: Rendered strictly INSIDE dashboard for logged-in officers */
-            <LiveAnalyticsMapDashboard
-              currentUser={currentUser}
-              allRequests={allRequests}
-              onViewRequestDetail={(req) => setActiveDetailRequest(req)}
-              onOpenActionModal={(req) => setActiveAdminActionRequest(req)}
-              onApplyAiSchedule={handleApplyAiSchedule}
-              activeZone={activeZone}
-              onSelectZone={setActiveZone}
-            />
+            <Suspense fallback={<div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Loading live analytics map...</div>}>
+              <LiveAnalyticsMapDashboard
+                currentUser={currentUser}
+                allRequests={allRequests}
+                onViewRequestDetail={(req) => setActiveDetailRequest(req)}
+                onOpenActionModal={(req) => setActiveAdminActionRequest(req)}
+                onApplyAiSchedule={handleApplyAiSchedule}
+                activeZone={activeZone}
+                onSelectZone={setActiveZone}
+              />
+            </Suspense>
           ) : activeNavTab === 'GANTT' ? (
-            <GanttChart
-              currentUser={currentUser}
-              allRequests={allRequests}
-              activeZone={activeZone}
-              onViewRequestDetail={(req) => setActiveDetailRequest(req)}
-            />
+            <Suspense fallback={<div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Loading schedule chart...</div>}>
+              <GanttChart
+                currentUser={currentUser}
+                allRequests={allRequests}
+                activeZone={activeZone}
+                onViewRequestDetail={(req) => setActiveDetailRequest(req)}
+              />
+            </Suspense>
           ) : currentUser.role === 'SECTION_CONTROLLER' ? (
             /* Main Control Administrator View: Cross-Department visibility + Exclusive Power */
             <AdminDashboard

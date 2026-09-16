@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Search,
   CheckCircle2,
@@ -35,6 +35,8 @@ import { FieldRosterModal } from './FieldRosterModal';
 import { AiCoPilotModal } from './AiCoPilotModal';
 import { calculateTrainImpact } from './TrainImpactWidget';
 import { exportRequestsToCsv } from '../utils/exportUtils';
+import { MLPredictionResult, predictRiskScore } from '../services/mlService';
+import { GeminiChatPanel } from './GeminiChatPanel';
 
 interface AdminDashboardProps {
   currentUser: User;
@@ -78,6 +80,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [sectionFilter, setSectionFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [showConflictsOnly, setShowConflictsOnly] = useState(false);
+  const [riskScores, setRiskScores] = useState<Record<string, MLPredictionResult>>({});
+
+  useEffect(() => {
+    let isCurrent = true;
+    const loadRiskScores = async () => {
+      const scoredRequests = await Promise.all(
+        allRequests.map(async (request) => {
+          const result = await predictRiskScore({
+            defect_id: request.id,
+            source_system: 'block_requests',
+            department: request.department,
+            section: request.section,
+            severity: request.priority === 'SAFETY_CRITICAL' ? 5 : request.priority === 'URGENT' ? 4 : 2,
+            days_overdue: 0,
+            asset_age_years: 0,
+            past_failure_count: 0,
+            deferred_count: request.status === 'PENDING' ? 1 : 0,
+          });
+          return [request.id, result] as const;
+        })
+      );
+      if (isCurrent) setRiskScores(Object.fromEntries(scoredRequests));
+    };
+
+    void loadRiskScores();
+    return () => {
+      isCurrent = false;
+    };
+  }, [allRequests]);
 
   // Modal states for Admin Exclusive Actions
   const [approveTargetReq, setApproveTargetReq] = useState<BlockRequest | null>(null);
@@ -765,6 +796,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span>PDF Roster</span>
             </button>
 
+            <GeminiChatPanel currentUser={currentUser} />
+
             {currentUser.role === 'SECTION_CONTROLLER' && (
               <button
                 onClick={onClearAllRequests}
@@ -815,6 +848,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <span className="font-mono font-bold text-blue-900">{req.id}</span>
                           {getDeptBadge(req.department)}
                         </div>
+                        {riskScores[req.id] ? (
+                          <span
+                            className={`mt-1 inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-bold ${
+                              riskScores[req.id].risk_tier === 'CRITICAL'
+                                ? 'border-red-300 bg-red-50 text-red-800'
+                                : riskScores[req.id].risk_tier === 'HIGH'
+                                ? 'border-orange-300 bg-orange-50 text-orange-800'
+                                : riskScores[req.id].risk_tier === 'MEDIUM'
+                                ? 'border-amber-300 bg-amber-50 text-amber-800'
+                                : 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                            }`}
+                            title={`LightGBM risk tier: ${riskScores[req.id].risk_tier}`}
+                          >
+                            ML Risk {riskScores[req.id].predicted_risk_score.toFixed(1)} · {riskScores[req.id].risk_tier}
+                          </span>
+                        ) : (
+                          <span className="mt-1 block text-[10px] text-slate-400">ML Risk loading...</span>
+                        )}
                         <span className="text-[10px] text-slate-500 block font-normal">
                           By: {req.applicantName.split(' ')[0]} {req.applicantName.split(' ')[1] || ''} (
                           {req.applicantDesignation.split('(')[0]})
