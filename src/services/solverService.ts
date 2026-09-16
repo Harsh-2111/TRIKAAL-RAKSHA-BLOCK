@@ -50,6 +50,7 @@ export interface ScheduleBlock {
   end_time_hhmm: string;
   duration_mins: number;
   priority_rank: number;
+  readOnly?: boolean;
 }
 
 export interface OptimizedScheduleResponse {
