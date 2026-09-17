@@ -288,10 +288,9 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
       });
 
       const politicalBaseLayer = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         {
-          attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-          subdomains: 'abcd',
+          attribution: '&copy; OpenStreetMap contributors',
           maxZoom: 19,
           minZoom: 4,
         }

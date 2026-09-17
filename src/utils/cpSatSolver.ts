@@ -118,7 +118,13 @@ export const runCpSatSolver = async (requests: BlockRequest[]): Promise<SolverOp
     duration_mins: request.durationMinutes,
   }));
 
-  const response = await fetch('http://localhost:8000/api/optimize', {
+  const configuredSolverUrl = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_SOLVER_API_URL;
+  const isLocalSolverUrl = Boolean(configuredSolverUrl && /localhost|127\.0\.0\.1/.test(configuredSolverUrl));
+  const solverUrl = configuredSolverUrl && (!import.meta.env.PROD || !isLocalSolverUrl)
+    ? `${configuredSolverUrl.replace(/\/$/, '')}/api/optimize`
+    : '/api/cp-sat/solve';
+
+  const response = await fetch(solverUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ requests: payload }),
