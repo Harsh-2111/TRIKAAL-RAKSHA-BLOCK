@@ -19,12 +19,6 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
-/** Creates and unlocks the shared context from a user gesture. */
-export function unlockAudioContext(): void {
-  const ctx = getAudioContext();
-  if (ctx?.state === 'suspended') void ctx.resume().catch(() => {});
-}
-
 /**
  * Checks if audio is currently muted by user preference
  */

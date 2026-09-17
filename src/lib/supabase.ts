@@ -1,6 +1,6 @@
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
-import { AppNotification, BlockRequest, User, UserRole, Department, AiScheduleRecord, SupabaseSyncState } from '../types';
+import { BlockRequest, User, UserRole, Department, AiScheduleRecord, SupabaseSyncState } from '../types';
 import { OFFICIAL_ROLES, normalizePersonName } from '../data/mockData';
 
 const requireEnv = (key: string): string => {
@@ -13,94 +13,6 @@ const requireEnv = (key: string): string => {
 
 export const SUPABASE_URL = requireEnv('VITE_SUPABASE_URL');
 export const SUPABASE_ANON_KEY = requireEnv('VITE_SUPABASE_ANON_KEY');
-
-export interface NotificationEventInput extends Omit<AppNotification, 'id' | 'timestamp' | 'read'> {
-  id: string;
-  timestamp?: string;
-}
-
-function logSupabaseNotificationError(operation: string, error: unknown): void {
-  const supabaseError = error as { message?: string; details?: string; hint?: string; code?: string } | null;
-  console.error(`[notifications] ${operation} failed`, {
-    error,
-    message: supabaseError?.message,
-    details: supabaseError?.details,
-    hint: supabaseError?.hint,
-    code: supabaseError?.code,
-  });
-}
-
-const notificationMatchesUser = (event: AppNotification, user: User): boolean => {
-  if (event.senderId && event.senderId === user.id) return false;
-  if (!event.targetRole || event.targetRole === 'ALL' || event.targetRole === user.role) return true;
-  return user.role === 'SECTION_CONTROLLER' && Boolean(event.department);
-};
-
-export async function fetchSharedNotifications(user: User): Promise<{ notifications: AppNotification[]; dismissedIds: string[]; fromSupabase: boolean }> {
-  try {
-    const [{ data: events, error: eventsError }, { data: dismissals, error: dismissalsError }] = await Promise.all([
-      supabase.from('notification_events').select('*').order('created_at', { ascending: false }).limit(500),
-      supabase.from('notification_dismissals').select('notification_id').eq('user_id', user.id),
-    ]);
-    if (eventsError) throw eventsError;
-    if (dismissalsError) throw dismissalsError;
-    const dismissed = new Set((dismissals || []).map((row: { notification_id: string }) => row.notification_id));
-    const notifications = (events || [])
-      .map((row: Record<string, unknown>) => ({
-        id: String(row.id),
-        type: row.type as AppNotification['type'],
-        title: String(row.title || ''),
-        message: String(row.message || ''),
-        timestamp: String(row.timestamp || row.created_at || ''),
-        read: Boolean(row.read),
-        requestId: row.request_id ? String(row.request_id) : undefined,
-        department: row.department as Department | undefined,
-        targetRole: row.target_role as UserRole | 'ALL' | undefined,
-        sourceRole: row.source_role as UserRole | undefined,
-        senderId: row.sender_id ? String(row.sender_id) : undefined,
-        priority: row.priority as 'HIGH' | 'NORMAL' | undefined,
-      }))
-      .filter((event) => !dismissed.has(event.id) && notificationMatchesUser(event, user));
-    return { notifications, dismissedIds: Array.from(dismissed), fromSupabase: true };
-  } catch (error) {
-    logSupabaseNotificationError('fetchSharedNotifications', error);
-    return { notifications: [], dismissedIds: [], fromSupabase: false };
-  }
-}
-
-export async function publishSharedNotification(notification: NotificationEventInput): Promise<void> {
-  try {
-    const { error } = await supabase.from('notification_events').upsert({
-      id: notification.id,
-      type: notification.type,
-      title: notification.title,
-      message: notification.message,
-      request_id: notification.requestId || null,
-      department: notification.department || null,
-      target_role: notification.targetRole || 'ALL',
-      source_role: notification.sourceRole || null,
-      sender_id: notification.senderId || null,
-      priority: notification.priority || 'NORMAL',
-      timestamp: notification.timestamp || new Date().toISOString(),
-    }, { onConflict: 'id' });
-    if (error) logSupabaseNotificationError('publishSharedNotification', error);
-  } catch (error) {
-    logSupabaseNotificationError('publishSharedNotification', error);
-  }
-}
-
-export async function dismissSharedNotifications(userId: string, notificationIds: string[]): Promise<void> {
-  if (notificationIds.length === 0) return;
-  try {
-    const { error } = await supabase.from('notification_dismissals').upsert(
-      notificationIds.map((notificationId) => ({ user_id: userId, notification_id: notificationId })),
-      { onConflict: 'user_id,notification_id' },
-    );
-    if (error) logSupabaseNotificationError('dismissSharedNotifications', error);
-  } catch (error) {
-    logSupabaseNotificationError('dismissSharedNotifications', error);
-  }
-}
 
 // Initialize the Supabase Client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
