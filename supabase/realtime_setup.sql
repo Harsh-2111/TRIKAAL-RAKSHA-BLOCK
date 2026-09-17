@@ -1,5 +1,54 @@
 -- RAKSHA-BLOCK cross-device sync setup
--- Run after the three-table schema in Supabase Dashboard -> SQL Editor.
+-- Run this in the hosted Supabase SQL Editor. It is safe to run repeatedly.
+
+-- These tables must exist before replica identity or Realtime publication can
+-- be configured. This also repairs projects where schema.sql was only partly run.
+create table if not exists public.notification_events (
+  id varchar primary key,
+  type varchar not null,
+  title text not null,
+  message text not null,
+  request_id varchar,
+  department varchar,
+  target_role varchar,
+  source_role varchar,
+  sender_id varchar,
+  priority varchar default 'NORMAL',
+  timestamp varchar,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.notification_dismissals (
+  user_id varchar not null,
+  notification_id varchar not null references public.notification_events(id) on delete cascade,
+  created_at timestamptz default now(),
+  primary key (user_id, notification_id)
+);
+
+create index if not exists idx_notification_events_created_at
+  on public.notification_events (created_at desc);
+
+alter table public.notification_events enable row level security;
+alter table public.notification_dismissals enable row level security;
+
+drop policy if exists "notification_events_public_select" on public.notification_events;
+create policy "notification_events_public_select" on public.notification_events
+for select to public using (true);
+
+drop policy if exists "notification_events_public_insert" on public.notification_events;
+create policy "notification_events_public_insert" on public.notification_events
+for insert to public with check (true);
+
+drop policy if exists "notification_dismissals_public_select" on public.notification_dismissals;
+create policy "notification_dismissals_public_select" on public.notification_dismissals
+for select to public using (true);
+
+drop policy if exists "notification_dismissals_public_insert" on public.notification_dismissals;
+create policy "notification_dismissals_public_insert" on public.notification_dismissals
+for insert to public with check (true);
+
+grant select, insert on table public.notification_events to anon, authenticated;
+grant select, insert on table public.notification_dismissals to anon, authenticated;
 
 alter table public.profiles replica identity full;
 alter table public.block_requests replica identity full;
