@@ -7,3 +7,5 @@ DLI-DEC,2,DOUBLE,87,Tier-3 (Medium Density),4.5
 DEC-GGN,2,DOUBLE,209,Tier-1 (Ultra High Density),11.8
 NZM-FDB,4,QUADRUPLE,130,Tier-2 (High Density),7.5
 GZB-MTC,4,QUADRUPLE,219,Tier-1 (Ultra High Density),12.0
+PNP-UMB,3,TRIPLE,230,Tier-1 (Ultra High Density),12.3
+VAPI-ST,2,DOUBLE,120,Tier-3 (Medium Density),6.9

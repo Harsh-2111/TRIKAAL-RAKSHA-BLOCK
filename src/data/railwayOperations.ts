@@ -89,8 +89,16 @@ const parseCsv = (csv: string): Record<string, string>[] => {
   return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] || ''])));
 };
 
-export const normalizeRailwaySection = (value: string): string =>
-  (value || '').toUpperCase().replace(/SECTION/g, '').replace(/[^A-Z0-9]/g, '');
+export const normalizeRailwaySection = (value: string): string => {
+  const normalized = (value || '').toUpperCase().replace(/SECTION/g, '').replace(/[^A-Z0-9]/g, '');
+  const aliases: Record<string, string> = {
+    PANIPATAMBALA: 'PNPUMB',
+    PANIPATAMBALASECTION: 'PNPUMB',
+    VAPISURAT: 'VAPIST',
+    VAPISURATSECTION: 'VAPIST',
+  };
+  return aliases[normalized] || normalized;
+};
 
 const splitSection = (section: string): [string, string] => {
   const parts = section.toUpperCase().split('-').map((part) => part.trim()).filter(Boolean);

@@ -25,6 +25,8 @@ SECTIONS = [
     "DEC-GGN",
     "NZM-FDB",
     "GZB-MTC",
+    "PNP-UMB",
+    "VAPI-ST",
 ]
 
 # Each pair represents adjacent sections in one of the main Delhi Division
@@ -35,6 +37,8 @@ ROUTE_PAIRS = [
     ("DLI-DEC", "DEC-GGN"),
     ("NZM-FDB", "NDLS-PWL"),
     ("GZB-MTC", "GZB-ALJN"),
+    ("PNP-UMB", "GZB-ALJN"),
+    ("VAPI-ST", "GZB-MTC"),
 ]
 
 TRAIN_PROFILES = (
