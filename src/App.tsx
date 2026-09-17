@@ -39,7 +39,7 @@ import {
   insertAiScheduleLogToSupabase,
   setupRealtimeSync,
 } from './lib/supabase';
-import { playRailwayChime, isAudioMuted, setAudioMuted } from './utils/audioAlert';
+import { playNotificationSound, isAudioMuted, setAudioMuted } from './utils/audioAlert';
 import { broadcastScheduleChange } from './services/realtimeSync';
 import { CheckCircle2, Info, X } from 'lucide-react';
 
@@ -122,9 +122,9 @@ export default function App() {
       .filter((notification) => (
         !notificationIdsRef.current!.has(notification.id) &&
         isNotificationVisibleToUser(notification, currentUser) &&
-        notification.sourceRole !== currentUser?.role
+        notification.senderId !== currentUser?.id
       ))
-      .forEach(() => playRailwayChime(false));
+      .forEach(() => playNotificationSound());
     notificationIdsRef.current = currentIds;
   }, [notifications, currentUser]);
 
@@ -164,7 +164,8 @@ export default function App() {
 
     const newEntry: AppNotification = {
       ...notif,
-      sourceRole: currentUser?.role,
+      sourceRole: notif.sourceRole ?? currentUser?.role,
+      senderId: notif.senderId ?? currentUser?.id,
       id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       timestamp: timeStr,
       read: false,
@@ -200,6 +201,7 @@ export default function App() {
 
   const isNotificationVisibleToUser = (item: AppNotification, user: User | null): boolean => {
     if (!user) return false;
+    if (item.senderId && item.senderId === user.id) return false;
     if (item.targetRole === 'ALL' || !item.targetRole) return true;
     if (item.targetRole === user.role) return true;
     return user.role === 'SECTION_CONTROLLER' && Boolean(item.department);
@@ -327,6 +329,9 @@ export default function App() {
             requestId: record.id,
             department: record.department,
             targetRole: 'SECTION_CONTROLLER',
+            sourceRole: getDepartmentRole(record.department),
+            senderId: (record as BlockRequest & { createdBy?: string; created_by?: string }).createdBy
+              || (record as BlockRequest & { created_by?: string }).created_by,
             priority: record.priority === 'SAFETY_CRITICAL' ? 'HIGH' : 'NORMAL',
           });
 
@@ -378,6 +383,9 @@ export default function App() {
             requestId: record.id,
             department: record.department,
             targetRole: getDepartmentRole(record.department),
+            sourceRole: 'SECTION_CONTROLLER',
+            senderId: (record as BlockRequest & { reviewedById?: string; reviewed_by_id?: string }).reviewedById
+              || (record as BlockRequest & { reviewed_by_id?: string }).reviewed_by_id,
             priority: record.priority === 'SAFETY_CRITICAL' ? 'HIGH' : 'NORMAL',
           });
 
@@ -396,6 +404,8 @@ export default function App() {
           title: `AI Master Schedule Published`,
           message: `Corridor Master Schedule "${scheduleRecord.schedule_name}" published! Saved ${scheduleRecord.total_hours_saved}h across ${scheduleRecord.conflicts_resolved} bundled windows.`,
           targetRole: 'ALL',
+          sourceRole: 'SECTION_CONTROLLER',
+          senderId: undefined,
           priority: 'HIGH',
         });
         showToast(`Real-time Sync: AI Schedule "${scheduleRecord.schedule_name}" published!`, 'info');

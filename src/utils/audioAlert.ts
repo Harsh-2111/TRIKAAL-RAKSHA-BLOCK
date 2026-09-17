@@ -91,6 +91,11 @@ export function playRailwayChime(overrideMute: boolean = false): void {
   }
 }
 
+/** Safe receiver-side notification sound entry point. */
+export function playNotificationSound(): void {
+  playRailwayChime(false);
+}
+
 /**
  * Plays an urgent high-priority double warning beep for critical conflicts / caution orders
  */
