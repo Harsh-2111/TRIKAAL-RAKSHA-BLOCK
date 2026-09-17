@@ -37,6 +37,7 @@ import { calculateTrainImpact } from './TrainImpactWidget';
 import { exportRequestsToCsv } from '../utils/exportUtils';
 import { MLPredictionResult, predictRiskScore } from '../services/mlService';
 import { GeminiChatPanel } from './GeminiChatPanel';
+import { AffectedTrainsModal } from './AffectedTrainsModal';
 
 interface AdminDashboardProps {
   currentUser: User;
@@ -123,6 +124,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [rejectTargetReq, setRejectTargetReq] = useState<BlockRequest | null>(null);
   const [modifyTargetReq, setModifyTargetReq] = useState<BlockRequest | null>(null);
   const [aiCoPilotTargetReq, setAiCoPilotTargetReq] = useState<BlockRequest | null>(null);
+  const [affectedTrainsRequest, setAffectedTrainsRequest] = useState<BlockRequest | null>(null);
 
   // Phase 4: AI CP-SAT Solver Modal state
   const [isAiOptimizerOpen, setIsAiOptimizerOpen] = useState(false);
@@ -930,15 +932,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           const impact = calculateTrainImpact(effDuration, req.section);
                           return (
                             <div className="mt-1">
-                              <span
-                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#000075] text-white shadow-2xs whitespace-nowrap border border-blue-900"
-                                title={`Live Movement Impact: ~${impact.passengerDelayMinutes}m passenger detention and ~${impact.freightDelayMinutes}m freight detention.`}
+                              <button
+                                type="button"
+                                onClick={() => setAffectedTrainsRequest(req)}
+                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#000075] text-white shadow-2xs whitespace-nowrap border border-blue-900 hover:bg-blue-900"
+                                title={`Open affected train movements: ~${impact.passengerDelayMinutes}m passenger detention and ~${impact.freightDelayMinutes}m freight detention.`}
                               >
                                 <span className="mr-1">🚆</span>
                                 <span className="text-amber-300 font-mono">{impact.passengerDelayMinutes}m P</span>
                                 <span className="mx-1 text-blue-300">|</span>
                                 <span className="text-emerald-300 font-mono">{impact.freightDelayMinutes}m F</span>
-                              </span>
+                                <Info className="ml-1 h-3 w-3 text-white/80" />
+                              </button>
                             </div>
                           );
                         })()}
@@ -1252,6 +1257,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onClose={() => setIsFieldRosterOpen(false)}
         requests={allRequests}
         currentUser={currentUser}
+      />
+
+      <AffectedTrainsModal
+        request={affectedTrainsRequest}
+        isOpen={Boolean(affectedTrainsRequest)}
+        onClose={() => setAffectedTrainsRequest(null)}
       />
     </div>
   );
