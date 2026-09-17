@@ -19,6 +19,17 @@ export interface NotificationEventInput extends Omit<AppNotification, 'id' | 'ti
   timestamp?: string;
 }
 
+function logSupabaseNotificationError(operation: string, error: unknown): void {
+  const supabaseError = error as { message?: string; details?: string; hint?: string; code?: string } | null;
+  console.error(`[notifications] ${operation} failed`, {
+    error,
+    message: supabaseError?.message,
+    details: supabaseError?.details,
+    hint: supabaseError?.hint,
+    code: supabaseError?.code,
+  });
+}
+
 const notificationMatchesUser = (event: AppNotification, user: User): boolean => {
   if (event.senderId && event.senderId === user.id) return false;
   if (!event.targetRole || event.targetRole === 'ALL' || event.targetRole === user.role) return true;
@@ -52,35 +63,43 @@ export async function fetchSharedNotifications(user: User): Promise<{ notificati
       .filter((event) => !dismissed.has(event.id) && notificationMatchesUser(event, user));
     return { notifications, dismissedIds: Array.from(dismissed), fromSupabase: true };
   } catch (error) {
-    console.warn('Shared notification sync unavailable:', error);
+    logSupabaseNotificationError('fetchSharedNotifications', error);
     return { notifications: [], dismissedIds: [], fromSupabase: false };
   }
 }
 
 export async function publishSharedNotification(notification: NotificationEventInput): Promise<void> {
-  const { error } = await supabase.from('notification_events').upsert({
-    id: notification.id,
-    type: notification.type,
-    title: notification.title,
-    message: notification.message,
-    request_id: notification.requestId || null,
-    department: notification.department || null,
-    target_role: notification.targetRole || 'ALL',
-    source_role: notification.sourceRole || null,
-    sender_id: notification.senderId || null,
-    priority: notification.priority || 'NORMAL',
-    timestamp: notification.timestamp || new Date().toISOString(),
-  }, { onConflict: 'id' });
-  if (error) console.warn('Shared notification publish failed:', error.message);
+  try {
+    const { error } = await supabase.from('notification_events').upsert({
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      request_id: notification.requestId || null,
+      department: notification.department || null,
+      target_role: notification.targetRole || 'ALL',
+      source_role: notification.sourceRole || null,
+      sender_id: notification.senderId || null,
+      priority: notification.priority || 'NORMAL',
+      timestamp: notification.timestamp || new Date().toISOString(),
+    }, { onConflict: 'id' });
+    if (error) logSupabaseNotificationError('publishSharedNotification', error);
+  } catch (error) {
+    logSupabaseNotificationError('publishSharedNotification', error);
+  }
 }
 
 export async function dismissSharedNotifications(userId: string, notificationIds: string[]): Promise<void> {
   if (notificationIds.length === 0) return;
-  const { error } = await supabase.from('notification_dismissals').upsert(
-    notificationIds.map((notificationId) => ({ user_id: userId, notification_id: notificationId })),
-    { onConflict: 'user_id,notification_id' },
-  );
-  if (error) console.warn('Shared notification dismissal failed:', error.message);
+  try {
+    const { error } = await supabase.from('notification_dismissals').upsert(
+      notificationIds.map((notificationId) => ({ user_id: userId, notification_id: notificationId })),
+      { onConflict: 'user_id,notification_id' },
+    );
+    if (error) logSupabaseNotificationError('dismissSharedNotifications', error);
+  } catch (error) {
+    logSupabaseNotificationError('dismissSharedNotifications', error);
+  }
 }
 
 // Initialize the Supabase Client

@@ -4,6 +4,8 @@
 alter table public.profiles replica identity full;
 alter table public.block_requests replica identity full;
 alter table public.ai_schedule replica identity full;
+alter table public.notification_events replica identity full;
+alter table public.notification_dismissals replica identity full;
 
 -- Preserve the complete client request without adding another table.
 alter table public.block_requests add column if not exists request_data jsonb;
@@ -52,3 +54,23 @@ begin
 exception when duplicate_object then null;
 end
 $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.notification_events;
+exception when duplicate_object then null;
+end
+$$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.notification_dismissals;
+exception when duplicate_object then null;
+end
+$$;
+
+-- Hosted-project verification: in Supabase Dashboard open Database -> Replication
+-- (or Table Editor -> each table -> Enable Realtime) and confirm both
+-- public.notification_events and public.notification_dismissals are enabled in
+-- the supabase_realtime publication. Run this after deploying the SQL; local
+-- migrations do not change a separate hosted Supabase project's publication.

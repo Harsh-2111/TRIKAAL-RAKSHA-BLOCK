@@ -43,7 +43,7 @@ import {
   dismissSharedNotifications,
   supabase,
 } from './lib/supabase';
-import { playNotificationSound, isAudioMuted, setAudioMuted } from './utils/audioAlert';
+import { playNotificationSound, isAudioMuted, setAudioMuted, unlockAudioContext } from './utils/audioAlert';
 import { broadcastScheduleChange } from './services/realtimeSync';
 import { CheckCircle2, Info, X } from 'lucide-react';
 
@@ -112,16 +112,31 @@ export default function App() {
     return DEFAULT_NOTIFICATIONS;
   });
   const notificationIdsRef = useRef<Set<string> | null>(null);
+  const pendingRealtimeNotificationIdsRef = useRef<Set<string>>(new Set());
   const [isAudioMutedState, setIsAudioMutedState] = useState<boolean>(() => isAudioMuted());
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState<boolean>(false);
 
   useEffect(() => {
+    const unlock = () => unlockAudioContext();
+    document.addEventListener('pointerdown', unlock, { once: true });
+    return () => document.removeEventListener('pointerdown', unlock);
+  }, []);
+
+  useEffect(() => {
+    notificationIdsRef.current = null;
+    pendingRealtimeNotificationIdsRef.current.clear();
     if (!currentUser) return;
     let isMounted = true;
 
-    const mergeSharedNotifications = async () => {
+    const mergeSharedNotifications = async (establishInitialBaseline = false) => {
       const result = await fetchSharedNotifications(currentUser);
       if (!isMounted || !result.fromSupabase) return;
+      const mergedIds = new Set(result.notifications.map((notification) => notification.id));
+      if (establishInitialBaseline) {
+        pendingRealtimeNotificationIdsRef.current.forEach((notificationId) => mergedIds.delete(notificationId));
+        notificationIdsRef.current = mergedIds;
+        pendingRealtimeNotificationIdsRef.current.clear();
+      }
       setNotifications((previous) => {
         const byId = new Map<string, AppNotification>(previous.map((notification) => [notification.id, notification]));
         result.dismissedIds.forEach((notificationId) => byId.delete(notificationId));
@@ -136,10 +151,12 @@ export default function App() {
       });
     };
 
-    void mergeSharedNotifications();
+    void mergeSharedNotifications(true);
     const channel = supabase
       .channel(`notifications:${currentUser.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notification_events' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notification_events' }, (payload) => {
+        const newNotificationId = (payload.new as { id?: string } | null)?.id;
+        if (newNotificationId) pendingRealtimeNotificationIdsRef.current.add(String(newNotificationId));
         void mergeSharedNotifications();
       })
       .on('postgres_changes', {
@@ -150,10 +167,17 @@ export default function App() {
       }, () => {
         void mergeSharedNotifications();
       });
-    channel.subscribe();
+    channel.subscribe((status) => {
+      console.log('[notif-channel]', status);
+    });
+
+    const notificationPollingInterval = window.setInterval(() => {
+      void mergeSharedNotifications();
+    }, 15000);
 
     return () => {
       isMounted = false;
+      window.clearInterval(notificationPollingInterval);
       void supabase.removeChannel(channel);
     };
   }, [currentUser?.id]);
