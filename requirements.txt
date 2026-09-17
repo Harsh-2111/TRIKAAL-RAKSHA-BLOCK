@@ -1,9 +1,1 @@
 ortools>=9.10,<10
-supabase>=2.0,<3
-pandas>=2.2,<4
-lightgbm>=4.5,<5
-scikit-learn>=1.5,<2
-shap>=0.46,<1
-joblib>=1.4,<2
-fastapi>=0.115,<1
-uvicorn[standard]>=0.30,<1

@@ -87,7 +87,7 @@ The frontend is a single-page React application. Department and admin dashboards
 
 ```bash
 npm install
-pip install -r requirements.txt
+pip install -r requirements.local.txt
 ```
 
 ### Run All Local Services
@@ -107,7 +107,7 @@ npm run dev
 
 The services are available at `http://localhost:8000`, `http://localhost:8001`, and `http://localhost:3000`. Open the frontend at http://localhost:3000/.
 
-The ML API loads the optional `models/defect_priority_lgb.pkl` artifact when present and otherwise serves its deterministic fallback. The Gemini Co-Pilot chat uses the server-side `GEMINI_API_KEY` and optional `GEMINI_MODEL` environment variables. `VITE_GEMINI_API_KEY` is accepted temporarily for existing deployments, but should be migrated to `GEMINI_API_KEY` because `VITE_` values are intended for browser exposure.
+The ML API loads the optional `models/defect_priority_lgb.pkl` artifact when present and otherwise serves its deterministic fallback. Local ML and FastAPI development dependencies are listed in `requirements.local.txt`. Vercel uses the minimal root `requirements.txt`, which contains only OR-Tools for the CP-SAT serverless function. The Gemini Co-Pilot chat uses the server-side `GEMINI_API_KEY` and optional `GEMINI_MODEL` environment variables. `VITE_GEMINI_API_KEY` is accepted temporarily for existing deployments, but should be migrated to `GEMINI_API_KEY` because `VITE_` values are intended for browser exposure.
 
 ## Environment Variables
 
