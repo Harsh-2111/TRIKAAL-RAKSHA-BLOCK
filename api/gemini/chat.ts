@@ -1,5 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
-
 type ChatMessage = { role: 'user' | 'assistant'; text: string };
 type ChatContext = {
   activeRequisitions?: unknown[];
@@ -13,6 +11,19 @@ const toContextText = (value: unknown, maxLength = 12000): string => {
   } catch {
     return '[]';
   }
+};
+
+const operationalFallback = (message: string, context: ChatContext): string => {
+  const requisitions = context.activeRequisitions || [];
+  const timetable = context.trainMasterSummary || {};
+  const trainCount = Array.isArray((timetable as { trains?: unknown[] }).trains)
+    ? (timetable as { trains: unknown[] }).trains.length
+    : 0;
+  const lowerMessage = message.toLowerCase();
+  if (lowerMessage.includes('train') || lowerMessage.includes('risk') || lowerMessage.includes('delay')) {
+    return `Live operations summary: ${requisitions.length} active requisitions and ${trainCount} timetable train records are loaded. Review the affected-train panel on the relevant block row for section-specific movements, regulation time, and capacity margin. Gemini is temporarily unavailable, so this response is based only on the loaded control-board data.`;
+  }
+  return `The live control board has ${requisitions.length} active requisitions loaded. Gemini is temporarily unavailable, so continue with the section conflict, timetable, and safety-envelope checks shown in the dashboard. No block authority is granted by this assistant.`;
 };
 
 export default async function handler(request: Request): Promise<Response> {
@@ -37,15 +48,38 @@ CURRENT LIVE BOARD CONTEXT:
 - Train Timetable Summary: ${toContextText(context.trainMasterSummary)}
 
 Answer questions in a concise, authoritative railway controller tone using this real-time data. Treat every recommendation as decision support, never as authority to occupy a line or approve a block.`;
-    const ai = new GoogleGenAI({ apiKey });
-    const result = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-      contents: [...history, { role: 'user', parts: [{ text: message }] }],
-      config: { systemInstruction, temperature: 0.2 },
-    });
-    return Response.json({ reply: result.text?.trim() || 'No response was returned.' });
+    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [...history, { role: 'user', parts: [{ text: message }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 500 },
+        }),
+      },
+    );
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error('Gemini REST API error', response.status, detail);
+      return Response.json({ reply: operationalFallback(message, context), degraded: true }, { status: 200 });
+    }
+    const result = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    const reply = result.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('').trim();
+    if (!reply) return Response.json({ reply: operationalFallback(message, context), degraded: true }, { status: 200 });
+    return Response.json({ reply });
   } catch (error) {
     console.error('Gemini chat request failed', error);
-    return Response.json({ error: 'Gemini request failed' }, { status: 502 });
+    const body = await request.clone().json().catch(() => ({})) as { message?: string; context?: ChatContext };
+    return Response.json({
+      reply: operationalFallback(body.message || '', body.context || {}),
+      degraded: true,
+    }, { status: 200 });
   }
 }
