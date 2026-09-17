@@ -1,0 +1,183 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+/* IRCTC Slow-scrolling Marquee Ticker */
+@keyframes irctcMarquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-irctc-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: irctcMarquee 40s linear infinite;
+}
+
+.animate-irctc-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Railway track blueprint & vector motif backgrounds */
+.bg-railway-blueprint {
+  background-color: #000075;
+  background-image: 
+    radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px, 48px 48px, 48px 48px;
+}
+
+.bg-rail-tracks-pattern {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(255, 255, 255, 0.03) 10px,
+    transparent 10px,
+    transparent 20px
+  );
+}
+
+/* Leaflet Satellite Map Custom UI overrides */
+.leaflet-popup-content-wrapper {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
+  padding: 0 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.4 !important;
+}
+
+.leaflet-popup-tip {
+  background: #ffffff !important;
+}
+
+.leaflet-container {
+  font-family: inherit !important;
+  isolation: isolate !important;
+  z-index: 0 !important;
+}
+
+/* Constrain Leaflet internal panes and controls strictly within z-20 */
+.leaflet-pane {
+  z-index: 10 !important;
+}
+
+.leaflet-top,
+.leaflet-bottom,
+.leaflet-control {
+  z-index: 20 !important;
+}
+
+.leaflet-popup-pane {
+  z-index: 25 !important;
+}
+
+@media (max-width: 640px) {
+  .mobile-header-actions > :first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .mobile-safe-padding {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .overflow-x-auto {
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media print {
+  /* Hide non-printable elements */
+  .no-print,
+  header,
+  footer,
+  nav,
+  #btn-logout-switch-role,
+  #run-ai-optimizer-btn {
+    display: none !important;
+  }
+
+  /* Reset body and background for clean printing */
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Target the printable document container */
+  #printable-roster-document {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 10mm !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+  }
+
+  /* Ensure page breaks don't split table rows or signatures */
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+}

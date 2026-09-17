@@ -1,0 +1,6 @@
+{
+  "name": "RAKSHA-BLOCK - Indian Railways Automatic Block Planning",
+  "description": "AI-Powered Automatic Block Planning and Corridor Maintenance Management System for Indian Railways (Engineering, S&T, TRD, and Section Controller).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
