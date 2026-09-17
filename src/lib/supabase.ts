@@ -1,6 +1,6 @@
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
-import { BlockRequest, User, UserRole, Department, AiScheduleRecord, SupabaseSyncState } from '../types';
+import { AppNotification, BlockRequest, User, UserRole, Department, AiScheduleRecord, SupabaseSyncState } from '../types';
 import { OFFICIAL_ROLES, normalizePersonName } from '../data/mockData';
 
 const requireEnv = (key: string): string => {
@@ -13,6 +13,63 @@ const requireEnv = (key: string): string => {
 
 export const SUPABASE_URL = requireEnv('VITE_SUPABASE_URL');
 export const SUPABASE_ANON_KEY = requireEnv('VITE_SUPABASE_ANON_KEY');
+
+export interface NotificationEventInput extends Omit<AppNotification, 'id' | 'timestamp' | 'read'> {
+  id?: string;
+  timestamp?: string;
+}
+
+const notificationMatchesUser = (notification: AppNotification, user: User): boolean => {
+  if (notification.senderId && notification.senderId === user.id) return false;
+  return notification.targetRole === 'ALL' || notification.targetRole === user.role;
+};
+
+const dbToNotification = (row: Record<string, unknown>): AppNotification => ({
+  id: String(row.id),
+  type: row.type as AppNotification['type'],
+  title: String(row.title || ''),
+  message: String(row.message || ''),
+  timestamp: String(row.timestamp || row.created_at || ''),
+  read: Boolean(row.read),
+  requestId: row.request_id ? String(row.request_id) : undefined,
+  department: row.department as AppNotification['department'],
+  targetRole: row.target_role as AppNotification['targetRole'],
+  sourceRole: row.source_role as AppNotification['sourceRole'],
+  senderId: row.sender_id ? String(row.sender_id) : undefined,
+  priority: row.priority as AppNotification['priority'],
+});
+
+export async function fetchSharedNotifications(user: User): Promise<AppNotification[]> {
+  const { data, error } = await supabase
+    .from('notification_events')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) {
+    console.warn('Shared notification fetch failed:', error.message);
+    return [];
+  }
+  return (data || [])
+    .map((row) => dbToNotification(row as Record<string, unknown>))
+    .filter((notification) => notificationMatchesUser(notification, user));
+}
+
+export async function publishSharedNotification(notification: NotificationEventInput): Promise<void> {
+  const { error } = await supabase.from('notification_events').upsert({
+    id: notification.id || `notif-${notification.type}-${notification.requestId || Date.now()}`,
+    type: notification.type,
+    title: notification.title,
+    message: notification.message,
+    request_id: notification.requestId || null,
+    department: notification.department || null,
+    target_role: notification.targetRole || 'ALL',
+    source_role: notification.sourceRole || null,
+    sender_id: notification.senderId || null,
+    priority: notification.priority || 'NORMAL',
+    timestamp: notification.timestamp || new Date().toISOString(),
+  }, { onConflict: 'id' });
+  if (error) console.warn('Shared notification publish failed:', error.message);
+}
 
 // Initialize the Supabase Client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

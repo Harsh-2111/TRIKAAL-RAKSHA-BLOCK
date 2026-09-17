@@ -38,6 +38,9 @@ import {
   batchUpdateBlockRequestsInSupabase,
   insertAiScheduleLogToSupabase,
   setupRealtimeSync,
+  fetchSharedNotifications,
+  publishSharedNotification,
+  supabase,
 } from './lib/supabase';
 import { playNotificationSound, isAudioMuted, setAudioMuted } from './utils/audioAlert';
 import { broadcastScheduleChange } from './services/realtimeSync';
@@ -112,6 +115,72 @@ export default function App() {
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState<boolean>(false);
 
   useEffect(() => {
+    notificationIdsRef.current = null;
+    if (!currentUser) return;
+    let isMounted = true;
+
+    const mergeNotifications = async () => {
+      const shared = await fetchSharedNotifications(currentUser);
+      if (!isMounted || shared.length === 0) return;
+      setNotifications((previous) => {
+        const byId = new Map(previous.map((notification) => [notification.id, notification]));
+        shared.forEach((notification) => byId.set(notification.id, notification));
+        const merged = Array.from(byId.values());
+        notificationIdsRef.current = new Set(byId.keys());
+        try {
+          localStorage.setItem('raksha_block_notifications', JSON.stringify(merged));
+        } catch {
+          // Local notification caching is best effort.
+        }
+        return merged;
+      });
+    };
+
+    void mergeNotifications();
+    const channel = supabase
+      .channel(`notification-events:${currentUser.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notification_events',
+      }, (payload) => {
+        const incoming = payload.new as Record<string, unknown>;
+        const notification = {
+          id: String(incoming.id),
+          type: incoming.type as NotificationType,
+          title: String(incoming.title || ''),
+          message: String(incoming.message || ''),
+          timestamp: String(incoming.timestamp || incoming.created_at || ''),
+          read: false,
+          requestId: incoming.request_id ? String(incoming.request_id) : undefined,
+          department: incoming.department as BlockRequest['department'] | undefined,
+          targetRole: incoming.target_role as UserRole | 'ALL' | undefined,
+          sourceRole: incoming.source_role as UserRole | undefined,
+          senderId: incoming.sender_id ? String(incoming.sender_id) : undefined,
+          priority: incoming.priority as 'HIGH' | 'NORMAL' | undefined,
+        } satisfies AppNotification;
+        if (notification.targetRole !== 'ALL' && notification.targetRole !== currentUser.role) return;
+        if (notification.senderId === currentUser.id) return;
+        setNotifications((previous) => {
+          if (previous.some((item) => item.id === notification.id)) return previous;
+          const updated = [notification, ...previous];
+          try {
+            localStorage.setItem('raksha_block_notifications', JSON.stringify(updated));
+          } catch {
+            // Local notification caching is best effort.
+          }
+          return updated;
+        });
+      });
+    channel.subscribe();
+
+    return () => {
+      isMounted = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
     const currentIds = new Set(notifications.map((notification) => notification.id));
     if (!notificationIdsRef.current) {
       notificationIdsRef.current = currentIds;
@@ -122,6 +191,7 @@ export default function App() {
       .filter((notification) => (
         !notificationIdsRef.current!.has(notification.id) &&
         isNotificationVisibleToUser(notification, currentUser) &&
+        notification.sourceRole !== currentUser?.role &&
         notification.senderId !== currentUser?.id
       ))
       .forEach(() => playNotificationSound());
@@ -153,7 +223,7 @@ export default function App() {
     }
   };
 
-  const addNotification = (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
+  const addNotification = (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>, publish = true) => {
     const timeStr =
       new Date().toLocaleTimeString('en-IN', {
         timeZone: 'Asia/Kolkata',
@@ -166,7 +236,7 @@ export default function App() {
       ...notif,
       sourceRole: notif.sourceRole ?? currentUser?.role,
       senderId: notif.senderId ?? currentUser?.id,
-      id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: `notif-${notif.type}-${notif.requestId || `${notif.title}-${notif.message}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 100)}`,
       timestamp: timeStr,
       read: false,
     };
@@ -190,6 +260,8 @@ export default function App() {
       }
       return updated;
     });
+
+    if (publish) void publishSharedNotification(newEntry);
 
   };
 
@@ -321,20 +393,6 @@ export default function App() {
             return updated;
           });
 
-          // Role-specific notification and chime alert
-          addNotification({
-            type: 'NEW_DEMAND',
-            title: `New Demand: ${record.id}`,
-            message: `${record.department} officer filed block requisition for ${record.section} (${record.requestedStartTime} - ${record.requestedEndTime}).`,
-            requestId: record.id,
-            department: record.department,
-            targetRole: 'SECTION_CONTROLLER',
-            sourceRole: getDepartmentRole(record.department),
-            senderId: (record as BlockRequest & { createdBy?: string; created_by?: string }).createdBy
-              || (record as BlockRequest & { created_by?: string }).created_by,
-            priority: record.priority === 'SAFETY_CRITICAL' ? 'HIGH' : 'NORMAL',
-          });
-
           showToast(`Real-time Sync: New ${record.department} request ${record.id} received.`, 'info');
         } else if (changeType === 'UPDATE') {
           if (record.status === 'COMPLETED' || record.status === 'REJECTED') {
@@ -351,44 +409,6 @@ export default function App() {
             return updated;
           });
 
-          const isApproved = record.status === 'APPROVED';
-          const isModified = record.status === 'MODIFIED_APPROVED';
-
-          const notifType: NotificationType = isApproved
-            ? 'STATUS_APPROVED'
-            : isModified
-            ? 'STATUS_MODIFIED'
-            : 'SYSTEM';
-
-          const title = isApproved
-            ? `Block Sanctioned by Main Control`
-            : isModified
-            ? `Block Modified & Sanctioned`
-            : `Requisition ${record.id} Updated`;
-
-          const timeWindow = `${record.approvedStartTime || record.requestedStartTime} - ${
-            record.approvedEndTime || record.requestedEndTime
-          }`;
-
-          const message = isApproved
-            ? `🔔 ${record.id} has been APPROVED by Section Control for ${timeWindow}.`
-            : isModified
-            ? `🔔 ${record.id} modified to window ${timeWindow}. Remarks: ${record.controllerRemarks || 'Corridor sync'}`
-            : `Requisition ${record.id} status changed to ${record.status}.`;
-
-          addNotification({
-            type: notifType,
-            title,
-            message,
-            requestId: record.id,
-            department: record.department,
-            targetRole: getDepartmentRole(record.department),
-            sourceRole: 'SECTION_CONTROLLER',
-            senderId: (record as BlockRequest & { reviewedById?: string; reviewed_by_id?: string }).reviewedById
-              || (record as BlockRequest & { reviewed_by_id?: string }).reviewed_by_id,
-            priority: record.priority === 'SAFETY_CRITICAL' ? 'HIGH' : 'NORMAL',
-          });
-
           showToast(`Real-time Sync: Requisition ${record.id} updated [${record.status}].`, 'info');
         } else if (changeType === 'DELETE') {
           setAllRequests((prev) => {
@@ -399,15 +419,6 @@ export default function App() {
         }
       },
       onAiScheduleChange: (scheduleRecord) => {
-        addNotification({
-          type: 'AI_OPTIMIZATION',
-          title: `AI Master Schedule Published`,
-          message: `Corridor Master Schedule "${scheduleRecord.schedule_name}" published! Saved ${scheduleRecord.total_hours_saved}h across ${scheduleRecord.conflicts_resolved} bundled windows.`,
-          targetRole: 'ALL',
-          sourceRole: 'SECTION_CONTROLLER',
-          senderId: undefined,
-          priority: 'HIGH',
-        });
         showToast(`Real-time Sync: AI Schedule "${scheduleRecord.schedule_name}" published!`, 'info');
       },
       onStatusChange: (statusState) => {
@@ -512,8 +523,8 @@ export default function App() {
 
     // Immediate dispatch notification
     addNotification({
-      type: 'NEW_DEMAND',
-      title: `New Demand Filed: ${newReq.id}`,
+      type: 'NEW_REQUEST',
+      title: `New Requisition: ${newReq.id}`,
       message: `${newReq.department} submitted requisition for ${newReq.section} (${newReq.requestedStartTime} - ${newReq.requestedEndTime}). Awaiting Section Controller clearance.`,
       requestId: newReq.id,
       department: newReq.department,
@@ -558,19 +569,26 @@ export default function App() {
 
     const notifType: NotificationType =
       updatedReq.status === 'APPROVED'
-        ? 'STATUS_APPROVED'
+        ? 'APPROVAL'
         : updatedReq.status === 'MODIFIED_APPROVED'
-        ? 'STATUS_MODIFIED'
-        : 'STATUS_REJECTED';
+        ? 'MODIFIED_APPROVAL'
+        : 'REJECTION';
 
     const timeWindow = `${updatedReq.approvedStartTime || updatedReq.requestedStartTime} - ${
       updatedReq.approvedEndTime || updatedReq.requestedEndTime
     }`;
 
+    const rejectionReason = updatedReq.controllerRemarks || 'No reason provided.';
+    const lifecycleMessage = updatedReq.status === 'APPROVED'
+      ? `Requisition ${updatedReq.id} has been APPROVED by Section Control.`
+      : updatedReq.status === 'MODIFIED_APPROVED'
+      ? `Requisition ${updatedReq.id} was MODIFIED and APPROVED for ${timeWindow} in ${updatedReq.section}.`
+      : `Requisition ${updatedReq.id} was REJECTED. Reason: ${rejectionReason}`;
+
     addNotification({
       type: notifType,
-      title: `Block ${actionText}: ${updatedReq.id}`,
-      message: `Requisition ${updatedReq.id} has been ${actionText} by Main Control for window ${timeWindow}.`,
+      title: `Requisition ${actionText}: ${updatedReq.id}`,
+      message: lifecycleMessage,
       requestId: updatedReq.id,
       department: updatedReq.department,
       targetRole: getDepartmentRole(updatedReq.department),
@@ -628,12 +646,12 @@ export default function App() {
 
     // 3. Real-time notification dispatch with audio chime to the affected department and Main Control Admin
     addNotification({
-      type: 'STATUS_APPROVED',
-      title: `Line Clear: ${clearedReq.id}`,
-      message: `✅ Safety Clearance Received: ${clearedReq.id} line cleared by Site Engineer (${engineerName}). All staff retreated, tools removed, OHE/S&T restored. Section reopened for train traffic.`,
+      type: 'CLOSED',
+      title: `Requisition Closed: ${clearedReq.id}`,
+      message: `Requisition ${clearedReq.id} is CLOSED. Line ${clearedReq.section} has been cleared by Site Engineer (${engineerName}) and reopened for train traffic.`,
       requestId: clearedReq.id,
       department: clearedReq.department,
-      targetRole: getDepartmentRole(clearedReq.department),
+      targetRole: 'ALL',
       priority: 'HIGH',
     });
 
@@ -687,10 +705,11 @@ export default function App() {
     setAllRequests(merged);
     saveStoredRequests(merged);
 
+    const scheduleSections = Array.from(new Set(updatedRequests.map((request) => request.section))).join(', ') || 'coordinated corridor sections';
     addNotification({
-      type: 'AI_OPTIMIZATION',
+      type: 'SCHEDULE_PUBLISHED',
       title: 'AI Master Schedule Published',
-      message: `Corridor Master Schedule "${solverMeta?.scheduleName || 'Coordinated Window'}" sanctioned! ${solverMeta?.hoursSaved || '4.2'}h detention saved across ${solverMeta?.conflictsResolved || updatedRequests.length} bundled corridors.`,
+      message: `AI Master Corridor Schedule Published for ${scheduleSections}. All bundled joint maintenance windows are now active.`,
       targetRole: 'ALL',
       priority: 'HIGH',
     });

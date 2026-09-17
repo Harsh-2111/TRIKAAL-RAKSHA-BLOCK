@@ -4,6 +4,8 @@
 alter table public.profiles replica identity full;
 alter table public.block_requests replica identity full;
 alter table public.ai_schedule replica identity full;
+alter table public.notification_events replica identity full;
+alter table public.notification_dismissals replica identity full;
 
 -- Preserve the complete client request without adding another table.
 alter table public.block_requests add column if not exists request_data jsonb;
@@ -49,6 +51,20 @@ $$;
 do $$
 begin
   alter publication supabase_realtime add table public.ai_schedule;
+exception when duplicate_object then null;
+end
+$$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.notification_events;
+exception when duplicate_object then null;
+end
+$$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.notification_dismissals;
 exception when duplicate_object then null;
 end
 $$;

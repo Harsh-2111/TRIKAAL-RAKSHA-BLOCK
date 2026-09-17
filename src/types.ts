@@ -174,6 +174,12 @@ export interface SupabaseSyncState {
 }
 
 export type NotificationType =
+  | 'NEW_REQUEST'
+  | 'APPROVAL'
+  | 'REJECTION'
+  | 'MODIFIED_APPROVAL'
+  | 'CLOSED'
+  | 'SCHEDULE_PUBLISHED'
   | 'NEW_DEMAND'
   | 'STATUS_APPROVED'
   | 'STATUS_MODIFIED'
