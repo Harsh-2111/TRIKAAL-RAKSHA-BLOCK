@@ -70,6 +70,28 @@ create table if not exists public.escalation_logs (
   created_at timestamptz default now()
 );
 
+create table if not exists public.notification_events (
+  id varchar primary key,
+  type varchar not null,
+  title text not null,
+  message text not null,
+  request_id varchar,
+  department varchar,
+  target_role varchar,
+  source_role varchar,
+  sender_id varchar,
+  priority varchar default 'NORMAL',
+  timestamp varchar,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.notification_dismissals (
+  user_id varchar not null,
+  notification_id varchar not null references public.notification_events(id) on delete cascade,
+  created_at timestamptz default now(),
+  primary key (user_id, notification_id)
+);
+
 create index if not exists idx_defects_section
   on public.defects (section);
 
@@ -84,6 +106,54 @@ create index if not exists idx_maintenance_schedules_section
 
 create index if not exists idx_escalation_logs_section_created_at
   on public.escalation_logs (section, created_at);
+
+create index if not exists idx_notification_events_created_at
+  on public.notification_events (created_at desc);
+
+alter table public.notification_events enable row level security;
+alter table public.notification_dismissals enable row level security;
+
+drop policy if exists "notification_events_public_select" on public.notification_events;
+create policy "notification_events_public_select" on public.notification_events
+for select to public using (true);
+
+drop policy if exists "notification_events_public_insert" on public.notification_events;
+create policy "notification_events_public_insert" on public.notification_events
+for insert to public with check (true);
+
+drop policy if exists "notification_dismissals_public_select" on public.notification_dismissals;
+create policy "notification_dismissals_public_select" on public.notification_dismissals
+for select to public using (true);
+
+drop policy if exists "notification_dismissals_public_insert" on public.notification_dismissals;
+create policy "notification_dismissals_public_insert" on public.notification_dismissals
+for insert to public with check (true);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_rel pr
+    join pg_class c on c.oid = pr.prrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where pr.prpubid = 'supabase_realtime'::regclass
+      and n.nspname = 'public'
+      and c.relname = 'notification_events'
+  ) then
+    alter publication supabase_realtime add table public.notification_events;
+  end if;
+  if not exists (
+    select 1
+    from pg_publication_rel pr
+    join pg_class c on c.oid = pr.prrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where pr.prpubid = 'supabase_realtime'::regclass
+      and n.nspname = 'public'
+      and c.relname = 'notification_dismissals'
+  ) then
+    alter publication supabase_realtime add table public.notification_dismissals;
+  end if;
+end $$;
 
 grant usage, select on sequence public.section_timetable_id_seq to authenticated;
 grant select on table public.corridor_capacity, public.trains_master,

@@ -38,6 +38,10 @@ import {
   batchUpdateBlockRequestsInSupabase,
   insertAiScheduleLogToSupabase,
   setupRealtimeSync,
+  fetchSharedNotifications,
+  publishSharedNotification,
+  dismissSharedNotifications,
+  supabase,
 } from './lib/supabase';
 import { playNotificationSound, isAudioMuted, setAudioMuted } from './utils/audioAlert';
 import { broadcastScheduleChange } from './services/realtimeSync';
@@ -112,6 +116,49 @@ export default function App() {
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState<boolean>(false);
 
   useEffect(() => {
+    if (!currentUser) return;
+    let isMounted = true;
+
+    const mergeSharedNotifications = async () => {
+      const result = await fetchSharedNotifications(currentUser);
+      if (!isMounted || !result.fromSupabase) return;
+      setNotifications((previous) => {
+        const byId = new Map<string, AppNotification>(previous.map((notification) => [notification.id, notification]));
+        result.dismissedIds.forEach((notificationId) => byId.delete(notificationId));
+        result.notifications.forEach((notification) => byId.set(notification.id, notification));
+        const merged = Array.from(byId.values()).sort((left, right) => right.id.localeCompare(left.id));
+        try {
+          localStorage.setItem('raksha_block_notifications', JSON.stringify(merged));
+        } catch (error) {
+          console.warn('Failed to cache shared notifications:', error);
+        }
+        return merged;
+      });
+    };
+
+    void mergeSharedNotifications();
+    const channel = supabase
+      .channel(`notifications:${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notification_events' }, () => {
+        void mergeSharedNotifications();
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notification_dismissals',
+        filter: `user_id=eq.${encodeURIComponent(currentUser.id)}`,
+      }, () => {
+        void mergeSharedNotifications();
+      });
+    channel.subscribe();
+
+    return () => {
+      isMounted = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
     const currentIds = new Set(notifications.map((notification) => notification.id));
     if (!notificationIdsRef.current) {
       notificationIdsRef.current = currentIds;
@@ -153,7 +200,10 @@ export default function App() {
     }
   };
 
-  const addNotification = (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
+  const addNotification = (
+    notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>,
+    publishToSharedStore = true,
+  ) => {
     const timeStr =
       new Date().toLocaleTimeString('en-IN', {
         timeZone: 'Asia/Kolkata',
@@ -166,7 +216,7 @@ export default function App() {
       ...notif,
       sourceRole: notif.sourceRole ?? currentUser?.role,
       senderId: notif.senderId ?? currentUser?.id,
-      id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: `notif-${notif.type}-${notif.requestId || `${notif.title}-${notif.message}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 100)}`,
       timestamp: timeStr,
       read: false,
     };
@@ -190,6 +240,8 @@ export default function App() {
       }
       return updated;
     });
+
+    if (publishToSharedStore) void publishSharedNotification(newEntry);
 
   };
 
@@ -224,6 +276,12 @@ export default function App() {
   };
 
   const handleClearAllNotifications = () => {
+    if (currentUser) {
+      const visibleNotificationIds = notifications
+        .filter((notification) => isNotificationVisibleToUser(notification, currentUser))
+        .map((notification) => notification.id);
+      void dismissSharedNotifications(currentUser.id, visibleNotificationIds);
+    }
     saveNotifications([]);
     showToast('All notifications cleared', 'info');
   };
@@ -333,7 +391,7 @@ export default function App() {
             senderId: (record as BlockRequest & { createdBy?: string; created_by?: string }).createdBy
               || (record as BlockRequest & { created_by?: string }).created_by,
             priority: record.priority === 'SAFETY_CRITICAL' ? 'HIGH' : 'NORMAL',
-          });
+          }, false);
 
           showToast(`Real-time Sync: New ${record.department} request ${record.id} received.`, 'info');
         } else if (changeType === 'UPDATE') {
@@ -387,7 +445,7 @@ export default function App() {
             senderId: (record as BlockRequest & { reviewedById?: string; reviewed_by_id?: string }).reviewedById
               || (record as BlockRequest & { reviewed_by_id?: string }).reviewed_by_id,
             priority: record.priority === 'SAFETY_CRITICAL' ? 'HIGH' : 'NORMAL',
-          });
+          }, false);
 
           showToast(`Real-time Sync: Requisition ${record.id} updated [${record.status}].`, 'info');
         } else if (changeType === 'DELETE') {
