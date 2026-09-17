@@ -1,3 +1,5 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+
 type ChatMessage = { role: 'user' | 'assistant'; text: string };
 type ChatContext = {
   activeRequisitions?: unknown[];
@@ -26,15 +28,51 @@ const operationalFallback = (message: string, context: ChatContext): string => {
   return `The live control board has ${requisitions.length} active requisitions loaded. Gemini is temporarily unavailable, so continue with the section conflict, timetable, and safety-envelope checks shown in the dashboard. No block authority is granted by this assistant.`;
 };
 
-export default async function handler(request: Request): Promise<Response> {
-  if (request.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405 });
+const sendJson = (response: ServerResponse, statusCode: number, payload: Record<string, unknown>): void => {
+  const body = JSON.stringify(payload);
+  response.statusCode = statusCode;
+  response.setHeader('Content-Type', 'application/json');
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  response.end(body);
+};
+
+const readBody = (request: IncomingMessage): Promise<string> => new Promise((resolve, reject) => {
+  let body = '';
+  request.setEncoding('utf8');
+  request.on('data', (chunk) => {
+    body += chunk;
+    if (body.length > 1_000_000) reject(new Error('Request body is too large.'));
+  });
+  request.on('end', () => resolve(body));
+  request.on('error', reject);
+});
+
+export default async function handler(request: IncomingMessage, response: ServerResponse): Promise<void> {
+  if (request.method === 'OPTIONS') {
+    response.statusCode = 204;
+    response.setHeader('Access-Control-Allow-Origin', '*');
+    response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    response.end();
+    return;
+  }
+  if (request.method !== 'POST') {
+    sendJson(response, 405, { error: 'Method not allowed' });
+    return;
+  }
   const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) return Response.json({ error: 'Gemini service is not configured' }, { status: 503 });
+  if (!apiKey) {
+    sendJson(response, 503, { error: 'Gemini service is not configured' });
+    return;
+  }
 
   try {
-    const body = await request.json() as { message?: string; history?: ChatMessage[]; context?: ChatContext };
+    const body = JSON.parse(await readBody(request)) as { message?: string; history?: ChatMessage[]; context?: ChatContext };
     const message = body.message?.trim();
-    if (!message || message.length > 2000) return Response.json({ error: 'Message must be 1-2000 characters' }, { status: 400 });
+    if (!message || message.length > 2000) {
+      sendJson(response, 400, { error: 'Message must be 1-2000 characters' });
+      return;
+    }
     const history = (body.history || []).slice(-10).map((item) => ({
       role: item.role === 'assistant' ? 'model' as const : 'user' as const,
       parts: [{ text: item.text.slice(0, 4000) }],
@@ -51,7 +89,7 @@ Answer questions in a concise, authoritative railway controller tone using this 
     const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
-    const response = await fetch(
+    const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: 'POST',
@@ -65,21 +103,24 @@ Answer questions in a concise, authoritative railway controller tone using this 
       },
     );
     clearTimeout(timeoutId);
-    if (!response.ok) {
-      const detail = await response.text();
-      console.error('Gemini REST API error', response.status, detail);
-      return Response.json({ reply: operationalFallback(message, context), degraded: true }, { status: 200 });
+    if (!geminiResponse.ok) {
+      const detail = await geminiResponse.text();
+      console.error('Gemini REST API error', geminiResponse.status, detail);
+      sendJson(response, 200, { reply: operationalFallback(message, context), degraded: true });
+      return;
     }
-    const result = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    const result = await geminiResponse.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
     const reply = result.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('').trim();
-    if (!reply) return Response.json({ reply: operationalFallback(message, context), degraded: true }, { status: 200 });
-    return Response.json({ reply });
+    if (!reply) {
+      sendJson(response, 200, { reply: operationalFallback(message, context), degraded: true });
+      return;
+    }
+    sendJson(response, 200, { reply });
   } catch (error) {
     console.error('Gemini chat request failed', error);
-    const body = await request.clone().json().catch(() => ({})) as { message?: string; context?: ChatContext };
-    return Response.json({
-      reply: operationalFallback(body.message || '', body.context || {}),
+    sendJson(response, 200, {
+      reply: operationalFallback('', {}),
       degraded: true,
-    }, { status: 200 });
+    });
   }
 }
