@@ -544,6 +544,8 @@ export function getCoordinatesForBlockRequest(req: {
       const st = STATIONS[match[1].toUpperCase()];
       return { lat: st.lat, lng: st.lng, sectionName: req.section };
     }
+    const namedStation = Object.values(STATIONS).find((station) => station.name.toUpperCase().includes(fromCode) || fromCode.includes(station.name.toUpperCase()));
+    if (namedStation) return { lat: namedStation.lat, lng: namedStation.lng, sectionName: req.section };
   }
 
   // 2. Direct stationTo matching
@@ -557,6 +559,8 @@ export function getCoordinatesForBlockRequest(req: {
       const st = STATIONS[match[1].toUpperCase()];
       return { lat: st.lat, lng: st.lng, sectionName: req.section };
     }
+    const namedStation = Object.values(STATIONS).find((station) => station.name.toUpperCase().includes(toCode) || toCode.includes(station.name.toUpperCase()));
+    if (namedStation) return { lat: namedStation.lat, lng: namedStation.lng, sectionName: req.section };
   }
 
   // 3. Known corridor codes check

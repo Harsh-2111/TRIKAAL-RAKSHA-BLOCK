@@ -24,7 +24,7 @@ import {
   HardHat,
   Trash2
 } from 'lucide-react';
-import { DEPARTMENT_CONFIG, detectShadowBlockOpportunities, RAILWAY_SECTIONS } from '../data/mockData';
+import { DEPARTMENT_CONFIG, detectShadowBlockOpportunities } from '../data/mockData';
 import { BlockPriority, BlockRequest, BlockStatus, Department, User, RailwayZoneCode } from '../types';
 import { AdminApproveModal } from './AdminApproveModal';
 import { AdminRejectModal } from './AdminRejectModal';
@@ -536,7 +536,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       <ImpactKpiDashboard
-        allRequests={allRequests}
+        allRequests={zoneScopedRequests}
         totalTrackHours={0}
         maintenanceDowntimeHours={0}
         bundledHours={0}

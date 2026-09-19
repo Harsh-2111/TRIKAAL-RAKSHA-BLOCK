@@ -9,7 +9,7 @@ import {
   Lock,
   TrainTrack
 } from 'lucide-react';
-import { DEPARTMENT_CONFIG, RAILWAY_SECTIONS } from '../data/mockData';
+import { DEPARTMENT_CONFIG } from '../data/mockData';
 import { CorridorCapacityRecord, getCorridorCapacity, resolveRequestZoneCode } from '../data/railwayOperations';
 import { BlockPriority, BlockRequest, Department, RailwayZoneCode, User } from '../types';
 
@@ -60,19 +60,14 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
 
   // Selected section object
   useEffect(() => {
-    const corridors = getCorridorCapacity().filter((corridor) => activeZone === 'ALL' || corridor.zoneCode === activeZone);
+    const corridors = getCorridorCapacity(activeZone);
     setFilteredCorridors(corridors);
     setSectionCode((current) => corridors.some((corridor) => corridor.sectionId === current) ? current : corridors[0]?.sectionId || '');
   }, [activeZone]);
 
   const selectedCorridor = filteredCorridors.find((corridor) => corridor.sectionId === sectionCode);
-  const currentSection = RAILWAY_SECTIONS.find((section) => section.code === sectionCode) || {
-    code: sectionCode,
-    name: selectedCorridor?.sectionName || '',
-    kmSpan: selectedCorridor ? `KM ${selectedCorridor.kmStart} - ${selectedCorridor.kmEnd}` : 'KM 00/00 - 00/00',
-    trafficDensity: selectedCorridor?.criticalityTier || 'CSV corridor capacity',
-    lines: selectedCorridor ? [selectedCorridor.lineType] : ['Main Line'],
-  };
+  const currentSection = selectedCorridor;
+  const officerId = `${activeZone}/${deptConfig?.code || 'OFFICER'}/${currentUser.employeeId.split('/').pop() || currentUser.employeeId}`;
 
   const calculateDuration = () => {
     if (!requestedStartTime || !requestedEndTime) return 0;
@@ -130,7 +125,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
     const effectiveZoneCode = activeZone !== 'ALL' ? activeZone : currentUser.zoneCode || resolveRequestZoneCode({
       zone: currentUser.zone,
       division: currentUser.division,
-      section: selectedCorridor?.sectionName || currentSection.name,
+      section: selectedCorridor?.sectionName || '',
     });
     const effectiveZoneName = currentUser.zone || (effectiveZoneCode !== 'ALL' ? `${effectiveZoneCode} Railway` : 'Indian Railways');
 
@@ -142,7 +137,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
       zone: effectiveZoneName,
       zoneCode: effectiveZoneCode,
       division: currentUser.division,
-      section: currentSection.name,
+      section: currentSection?.sectionName || '',
       stationFrom: stationFrom.trim(),
       stationTo: stationTo.trim(),
       lineType,
@@ -195,7 +190,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-blue-200">
-                Department: <strong>{deptConfig?.name}</strong> • Division: {selectedCorridor?.divisionName || currentUser.division} ({activeZone})
+                Department: <strong>{deptConfig?.name}</strong> • Division: {selectedCorridor?.divisionName || currentUser.division} ({activeZone}) • Officer ID: {officerId}
               </p>
             </div>
           </div>
@@ -256,7 +251,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
                   ))}
                 </select>
                 <span className="text-[10px] text-slate-500 mt-0.5 block">
-                  Density: {currentSection.trafficDensity}
+                  Density: {currentSection?.criticalityTier || 'CSV corridor capacity'}
                 </span>
               </div>
 
@@ -269,11 +264,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
                   onChange={(e) => setLineType(e.target.value)}
                   className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-600 focus:border-blue-600 bg-white"
                 >
-                  {currentSection.lines.map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
+                  <option value={currentSection?.lineType || 'Main Line'}>{currentSection?.lineType || 'Main Line'}</option>
                 </select>
               </div>
 

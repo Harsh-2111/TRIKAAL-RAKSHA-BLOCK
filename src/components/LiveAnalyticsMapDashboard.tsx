@@ -506,6 +506,24 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
       const passengerDelay = req.passengerDelayMins ?? delayMetrics.passengerDelayMins;
       const freightDelay = req.freightDelayMins ?? delayMetrics.freightDelayMins;
 
+      const resolveStation = (value?: string) => {
+        const normalized = value?.toUpperCase().trim();
+        if (!normalized) return undefined;
+        return Object.values(STATIONS).find((station) => station.code === normalized || station.name.toUpperCase().includes(normalized) || normalized.includes(station.name.toUpperCase()));
+      };
+      const fromStation = resolveStation(req.stationFrom);
+      const toStation = resolveStation(req.stationTo);
+      if (fromStation && toStation) {
+        const blockOverlay = L.polyline([[fromStation.lat, fromStation.lng], [toStation.lat, toStation.lng]], {
+          color: category === 'ACTIVE' ? '#ef4444' : category === 'SCHEDULED' ? '#10b981' : '#f59e0b',
+          weight: 6,
+          opacity: 0.85,
+          dashArray: category === 'PENDING' ? '8 8' : undefined,
+        });
+        blockOverlay.bindTooltip(`${req.id}: ${req.section}`, { sticky: true });
+        polylinesLayerGroupRef.current?.addLayer(blockOverlay);
+      }
+
       // Color scheme based on Legend:
       // 🔴 Active WIP (#EF4444)
       // 🔵 Scheduled / Approved (#2563EB)

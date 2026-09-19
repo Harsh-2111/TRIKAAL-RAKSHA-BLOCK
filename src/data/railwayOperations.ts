@@ -31,33 +31,47 @@ export interface CorridorCapacityRecord {
   sectionName: string;
   zoneCode: RailwayZoneCode;
   divisionName: string;
+  divisionCode: string;
   kmStart: string;
   kmEnd: string;
   totalTracks: number;
   lineType: string;
   dailyTrainCount: number;
+  capacityHoursUsed: number;
+  maxCapacityHours: number;
   criticalityTier: string;
   maxHourlyCapacity: number;
 }
 
-const CORRIDOR_ZONE_METADATA: Record<string, { zoneCode: RailwayZoneCode; divisionName: string; kmStart: string; kmEnd: string }> = {
-  'NDLS-GZB': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
-  'GZB-ALJN': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
-  'NDLS-PWL': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
-  'PWL-MTJ': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
-  'DLI-DEC': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
-  'DEC-GGN': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
-  'NZM-FDB': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
-  'GZB-MTC': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
-  'PNP-UMB': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
-  'VAPI-ST': { zoneCode: 'WR', divisionName: 'Mumbai Central Division (MMCT)', kmStart: '00/00', kmEnd: '00/00' },
+const DIVISION_NAMES: Record<string, string> = {
+  DLI: 'Delhi Division', MMCT: 'Mumbai Central Division', BRC: 'Vadodara Division', ADI: 'Ahmedabad Division',
+  RTM: 'Ratlam Division', BB: 'Mumbai Division', PA: 'Pune Division', NGP: 'Nagpur Division', BSL: 'Bhusaval Division',
+  SDAH: 'Sealdah Division', HWH: 'Howrah Division', ASN: 'Asansol Division', MLDT: 'Malda Division', MAS: 'Chennai Division', TPJ: 'Tiruchchirappalli Division',
 };
 
-const corridorMetadata = (section: string) => CORRIDOR_ZONE_METADATA[section.toUpperCase()] || {
-  zoneCode: 'ALL' as RailwayZoneCode,
-  divisionName: 'Indian Railways',
-  kmStart: '00/00',
-  kmEnd: '00/00',
+export const extractZoneCode = (selectedZone = ''): RailwayZoneCode => {
+  const normalized = selectedZone.trim().toUpperCase();
+  if (!normalized || normalized === 'ALL' || normalized === 'PAN-INDIA' || normalized.includes('PAN-INDIA')) return 'ALL';
+  const match = normalized.match(/\b(NR|WR|CR|ER|SR)\b/);
+  if (match) return match[1] as RailwayZoneCode;
+  if (normalized.includes('NORTHERN')) return 'NR';
+  if (normalized.includes('WESTERN')) return 'WR';
+  if (normalized.includes('CENTRAL')) return 'CR';
+  if (normalized.includes('EASTERN')) return 'ER';
+  if (normalized.includes('SOUTHERN')) return 'SR';
+  return 'ALL';
+};
+
+const corridorMetadata = (row: Record<string, string>) => {
+  const zoneCode = extractZoneCode(row.zone);
+  const divisionCode = row.division || '';
+  return {
+    zoneCode,
+    divisionCode,
+    divisionName: DIVISION_NAMES[divisionCode] || (divisionCode ? `${divisionCode} Division` : 'Indian Railways'),
+    kmStart: row.km_start || '0',
+    kmEnd: row.km_end || '0',
+  };
 };
 
 export interface DefectRecord {
@@ -258,15 +272,17 @@ export const SECTION_TIMETABLE: SectionTimetableRecord[] = timetableRows.map((ro
 }));
 
 export const CORRIDOR_CAPACITY: CorridorCapacityRecord[] = capacityRows.map((row) => ({
-  section: row.section,
-  sectionId: normalizeRailwaySection(row.section),
-  sectionName: row.section,
-  ...corridorMetadata(row.section),
-  totalTracks: Number(row.total_tracks || 0),
+  section: row.section_id || row.section,
+  sectionId: row.section_id || normalizeRailwaySection(row.section),
+  sectionName: row.section_name || row.section_id || row.section,
+  ...corridorMetadata(row),
+  totalTracks: Number(row.total_tracks || (row.line_type === 'QUADRUPLE' ? 4 : row.line_type === 'TRIPLE' ? 3 : row.line_type === 'SINGLE' ? 1 : 2)),
   lineType: row.line_type || 'Unknown',
   dailyTrainCount: Number(row.daily_train_count || 0),
-  criticalityTier: row.criticality_tier || 'Unclassified',
-  maxHourlyCapacity: Number(row.max_hourly_capacity || 0),
+  capacityHoursUsed: Number(row.capacity_hours_used || 0),
+  maxCapacityHours: Number(row.max_capacity_hours || 0),
+  criticalityTier: row.criticality_tier || (Number(row.capacity_hours_used || 0) >= 20 ? 'Tier-1 (High Utilization)' : 'Unclassified'),
+  maxHourlyCapacity: Number(row.max_capacity_hours || row.max_hourly_capacity || 0),
 }));
 
 export const DEFECTS: DefectRecord[] = defectRows.map((row) => ({
@@ -308,32 +324,63 @@ export function getDefectAutofill(defect: DefectRecord, department: 'ENGINEERING
 }
 
 export function getSectionTimetable(section?: string): SectionTimetableRecord[] {
-  if (!section) return SECTION_TIMETABLE;
+  if (!section || extractZoneCode(section) !== 'ALL' && ['NR', 'WR', 'CR', 'ER', 'SR'].includes(extractZoneCode(section))) {
+    const zone = extractZoneCode(section);
+    if (zone === 'ALL' && !section) return SECTION_TIMETABLE;
+    return SECTION_TIMETABLE.filter((entry) => getCorridorZoneCode(entry.section) === zone);
+  }
   const normalized = normalizeRailwaySection(section);
   return SECTION_TIMETABLE.filter((entry) => normalizeRailwaySection(entry.section) === normalized);
 }
 
 export function getCorridorCapacity(section?: string): CorridorCapacityRecord[] {
-  if (!section) return CORRIDOR_CAPACITY;
+  const zone = extractZoneCode(section);
+  if (!section || zone !== 'ALL') return zone === 'ALL' ? CORRIDOR_CAPACITY : CORRIDOR_CAPACITY.filter((entry) => entry.zoneCode === zone);
   const normalized = normalizeRailwaySection(section);
-  return CORRIDOR_CAPACITY.filter((entry) => normalizeRailwaySection(entry.section) === normalized);
+  return CORRIDOR_CAPACITY.filter((entry) => (
+    entry.sectionId === normalized ||
+    normalizeRailwaySection(entry.section) === normalized ||
+    normalizeRailwaySection(entry.sectionName) === normalized
+  ));
+}
+
+const getCorridorZoneCode = (section: string): RailwayZoneCode => {
+  const normalized = normalizeRailwaySection(section);
+  return CORRIDOR_CAPACITY.find((corridor) => normalizeRailwaySection(corridor.sectionId) === normalized)?.zoneCode || 'ALL';
+};
+
+export function getDefects(selectedZone?: string): DefectRecord[] {
+  const zone = extractZoneCode(selectedZone);
+  if (zone === 'ALL') return DEFECTS;
+  return DEFECTS.filter((defect) => getCorridorZoneCode(defect.section) === zone);
+}
+
+export function getRequisitions<T extends Pick<BlockRequest, 'zoneCode' | 'zone' | 'division' | 'section'>>(
+  requisitions: T[],
+  selectedZone?: string,
+): T[] {
+  const zone = extractZoneCode(selectedZone);
+  return zone === 'ALL' ? requisitions : requisitions.filter((request) => resolveRequestZoneCode(request) === zone);
 }
 
 const TRAIN_BY_NUMBER = new Map(TRAIN_MASTER.map((train) => [train.trainNumber, train]));
 
 const capacityBySection = new Map<string, CorridorCapacityRecord>();
 capacityRows.forEach((row) => {
-  const metadata = corridorMetadata(row.section);
-  capacityBySection.set(normalizeRailwaySection(row.section), {
-    section: row.section,
-    sectionId: normalizeRailwaySection(row.section),
-    sectionName: row.section,
+  const sectionId = row.section_id || row.section;
+  const metadata = corridorMetadata(row);
+  capacityBySection.set(normalizeRailwaySection(sectionId), {
+    section: sectionId,
+    sectionId,
+    sectionName: row.section_name || sectionId,
     ...metadata,
-    totalTracks: Number(row.total_tracks || 0),
+    totalTracks: Number(row.total_tracks || (row.line_type === 'QUADRUPLE' ? 4 : row.line_type === 'TRIPLE' ? 3 : row.line_type === 'SINGLE' ? 1 : 2)),
     lineType: row.line_type || 'Unknown',
     dailyTrainCount: Number(row.daily_train_count || 0),
+    capacityHoursUsed: Number(row.capacity_hours_used || 0),
+    maxCapacityHours: Number(row.max_capacity_hours || 0),
     criticalityTier: row.criticality_tier || 'Unclassified',
-    maxHourlyCapacity: Number(row.max_hourly_capacity || 0),
+    maxHourlyCapacity: Number(row.max_capacity_hours || row.max_hourly_capacity || 0),
   });
 });
 
@@ -400,7 +447,8 @@ export function getSectionCapacitySummary(
   request: Pick<BlockRequest, 'section' | 'requestedStartTime' | 'requestedEndTime' | 'durationMinutes'>,
   affectedTrainCount: number,
 ): SectionCapacitySummary {
-  const capacity = capacityBySection.get(normalizeRailwaySection(request.section));
+  const normalizedSection = normalizeRailwaySection(request.section);
+  const capacity = capacityBySection.get(normalizedSection) || Array.from(capacityBySection.values()).find((entry) => normalizeRailwaySection(entry.sectionName) === normalizedSection);
   if (!capacity) {
     return {
       section: request.section,

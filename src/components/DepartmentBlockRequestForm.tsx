@@ -25,16 +25,6 @@ interface DepartmentBlockRequestFormProps {
   onCancel: () => void;
 }
 
-const SECTION_PRESETS = [
-  'Delhi - Ambala Section, KM 45/2 - 48/6',
-  'Ghaziabad - New Delhi Section, KM 14/12 - 16/40',
-  'Aligarh - Tundla Section, KM 1350/08 - 1352/20',
-  'New Delhi - Tuglakabad Section, KM 8/10 - 11/20',
-  'Delhi Shahdara - Moradabad Section, KM 22/4 - 26/8',
-  'Panipat - Ambala Section, KM 122/0 - 126/5',
-  'Custom Section (Type Below)',
-];
-
 const COMMON_MACHINERY = [
   'BCM (Ballast Cleaning Machine)',
   'Tower Wagon (8-Wheeler RU)',
@@ -86,7 +76,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   const [showErrorBanner, setShowErrorBanner] = useState<boolean>(false);
 
   useEffect(() => {
-    const corridors = getCorridorCapacity().filter((corridor) => activeZone === 'ALL' || corridor.zoneCode === activeZone);
+    const corridors = getCorridorCapacity(activeZone);
     setFilteredCorridors(corridors);
     setSelectedSectionPreset((current) => corridors.some((corridor) => corridor.sectionId === current) ? current : corridors[0]?.sectionId || '');
   }, [activeZone]);
@@ -110,6 +100,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   const durationInfo = calculateDuration();
   const selectedCorridor = filteredCorridors.find((corridor) => corridor.sectionId === selectedSectionPreset);
   const selectedDivisionName = selectedCorridor?.divisionName || (activeZone === 'ALL' ? currentUser.division : `${activeZone} Division`);
+  const officerId = `${activeZone}/${deptConfig.code}/${currentUser.employeeId.split('/').pop() || currentUser.employeeId}`;
 
   const departmentDefects = DEFECTS.filter((defect) => {
     const normalizedDepartment = defect.department.toUpperCase().replace(/[\s&]/g, '') === 'ST'
@@ -254,7 +245,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
       zoneCode: effectiveZoneCode,
       division: currentUser.division,
       section: resolvedSection,
-      sectionId: selectedDefect?.section,
+      sectionId: selectedDefect?.section || selectedCorridor?.sectionId,
       location: selectedDefectLocation || undefined,
       defectId: selectedDefectId || undefined,
       defectType: selectedDefect ? getDefectAutofill(selectedDefect, userDept).defectType : undefined,
@@ -322,7 +313,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
             </div>
             <p className="text-xs text-blue-200 mt-0.5">
               Department: <strong className="text-white">{deptConfig.name}</strong> • Division: <strong className="text-white">{selectedDivisionName} ({activeZone})</strong> • Officer ID:{' '}
-              <span className="font-mono text-amber-300">{currentUser.employeeId}</span>
+              <span className="font-mono text-amber-300">{officerId}</span>
             </p>
           </div>
         </div>
@@ -361,7 +352,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
             </span>
           </div>
           <span className="text-[11px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-            Division: {currentUser.division} (NR)
+            Division: {selectedDivisionName} ({activeZone})
           </span>
         </div>
 
