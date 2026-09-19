@@ -2,6 +2,7 @@ import { BlockRequest } from '../types';
 import { DEPARTMENT_CONFIG } from '../data/mockData';
 import { calculateSectionDelays } from './delayCalculator';
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 /**
  * Cleanly escapes a string value for standard RFC 4180 CSV compliance
@@ -73,10 +74,26 @@ export function exportRequestsToCsv(
   return { success: true, count: requests.length, filename };
 }
 
-export function exportRequestsToOfficialPdf(
+async function loadLogoDataUrl(): Promise<string | null> {
+  try {
+    const response = await fetch('/logo.png');
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function exportRequestsToOfficialPdf(
   requests: BlockRequest[],
   customFilename?: string,
-): { success: boolean; count: number; filename: string } {
+): Promise<{ success: boolean; count: number; filename: string }> {
   if (!requests || requests.length === 0) {
     return { success: false, count: 0, filename: '' };
   }
@@ -87,51 +104,30 @@ export function exportRequestsToOfficialPdf(
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 10;
-  const columns = [
-    { label: 'Requisition ID', width: 31 },
-    { label: 'Department', width: 29 },
-    { label: 'Section / Location', width: 53 },
-    { label: 'Date & Time Window', width: 52 },
-    { label: 'Granted Duration', width: 30 },
-    { label: 'Delays (P/F)', width: 29 },
-    { label: 'Approval Status', width: 37 },
-  ];
-  const tableWidth = columns.reduce((total, column) => total + column.width, 0);
   const generatedAt = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-
-  const drawEmblem = (x: number, y: number) => {
-    pdf.setDrawColor(255, 193, 7);
-    pdf.setLineWidth(0.6);
-    pdf.circle(x + 7, y + 7, 6, 'S');
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(8);
-    pdf.setTextColor(255, 255, 255);
-    pdf.text('RB', x + 3.7, y + 8.5);
-    pdf.setLineWidth(0.8);
-    pdf.line(x + 1, y + 15, x + 13, y + 15);
-    pdf.line(x + 1, y + 17, x + 13, y + 17);
-  };
+  const logoDataUrl = await loadLogoDataUrl();
 
   const drawHeader = () => {
     pdf.setFillColor(0, 0, 117);
     pdf.rect(0, 0, pageWidth, 25, 'F');
     pdf.setFillColor(234, 88, 12);
     pdf.rect(0, 25, pageWidth, 1.5, 'F');
-    drawEmblem(margin, 4);
+    if (logoDataUrl) {
+      pdf.addImage(logoDataUrl, 'PNG', margin, 3, 18, 18);
+    }
     pdf.setTextColor(255, 255, 255);
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(13);
-    pdf.text('INDIAN RAILWAYS - TRIKAAL RAKSHA BLOCK PLATFORM', margin + 20, 10);
+    pdf.text('INDIAN RAILWAYS - TRIKAAL RAKSHA BLOCK PLATFORM', margin + 22, 10);
     pdf.setFontSize(9);
-    pdf.text('OFFICIAL CORRIDOR BLOCK POSSESSION REPORT', margin + 20, 17);
+    pdf.text('OFFICIAL CORRIDOR BLOCK POSSESSION REPORT', margin + 22, 17);
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(7.5);
     pdf.text(`Generated: ${generatedAt} IST`, pageWidth - margin - 48, 10);
     pdf.text('Centralized Corridor Management', pageWidth - margin - 48, 17);
   };
 
-  const totalPagesPlaceholder = '{total_pages_count_string}';
-  const drawFooter = (pageNumber: number, totalPages: number | string) => {
+  const drawFooter = (pageNumber: number, totalPages: number) => {
     pdf.setDrawColor(30, 58, 138);
     pdf.setLineWidth(0.3);
     pdf.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
@@ -156,55 +152,65 @@ export function exportRequestsToOfficialPdf(
     ];
   });
 
-  drawHeader();
-  let y = 34;
-  let pageNumber = 1;
-  const headerHeight = 9;
-  const rowPadding = 3;
-  const drawTableHeader = () => {
-    let x = margin;
-    pdf.setFillColor(30, 58, 138);
-    pdf.setDrawColor(30, 58, 138);
-    columns.forEach((column) => {
-      pdf.rect(x, y, column.width, headerHeight, 'FD');
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(7);
-      pdf.text(column.label, x + 2, y + 5.8);
-      x += column.width;
-    });
-    y += headerHeight;
-  };
-  drawTableHeader();
+  const headers = [[
+    'Requisition ID',
+    'Dept',
+    'Section',
+    'Date & Window',
+    'Duration',
+    'Delay (P/F)',
+    'Status',
+  ]];
 
-  rows.forEach((row, rowIndex) => {
-    const wrapped = row.map((value, index) => pdf.splitTextToSize(value, columns[index].width - rowPadding * 2));
-    const rowHeight = Math.max(...wrapped.map((lines) => lines.length)) * 3.7 + rowPadding * 2;
-    if (y + rowHeight > pageHeight - 14) {
-      drawFooter(pageNumber, totalPagesPlaceholder);
-      pdf.addPage();
-      pageNumber += 1;
-      drawHeader();
-      y = 34;
-      drawTableHeader();
-    }
-    let x = margin;
-    pdf.setFillColor(rowIndex % 2 === 0 ? 248 : 239, rowIndex % 2 === 0 ? 250 : 246, rowIndex % 2 === 0 ? 252 : 255);
-    wrapped.forEach((lines, index) => {
-      pdf.setDrawColor(30, 58, 138);
-      pdf.setLineWidth(0.2);
-      pdf.rect(x, y, columns[index].width, rowHeight, 'FD');
-      pdf.setTextColor(15, 23, 42);
-      pdf.setFont('helvetica', index === 0 ? 'bold' : 'normal');
-      pdf.setFontSize(7);
-      pdf.text(lines, x + rowPadding, y + rowPadding + 2.7, { baseline: 'top' });
-      x += columns[index].width;
-    });
-    y += rowHeight;
+  autoTable(pdf, {
+    head: headers,
+    body: rows,
+    startY: 32,
+    margin: { top: 32, right: margin, bottom: 15, left: margin },
+    tableWidth: 'auto',
+    theme: 'grid',
+    styles: {
+      font: 'helvetica',
+      fontSize: 8,
+      cellPadding: 2.5,
+      overflow: 'linebreak',
+      textColor: [15, 23, 42],
+      lineColor: [203, 213, 225],
+      lineWidth: 0.1,
+      valign: 'middle',
+    },
+    headStyles: {
+      fillColor: [15, 23, 42],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 9,
+      halign: 'center',
+      valign: 'middle',
+    },
+    bodyStyles: {
+      fillColor: [255, 255, 255],
+      textColor: [15, 23, 42],
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252],
+    },
+    columnStyles: {
+      0: { cellWidth: 31, fontStyle: 'bold' },
+      1: { cellWidth: 29 },
+      2: { cellWidth: 53 },
+      3: { cellWidth: 52 },
+      4: { cellWidth: 30, halign: 'center' },
+      5: { cellWidth: 29, halign: 'center' },
+      6: { cellWidth: 37, halign: 'center' },
+    },
+    didDrawPage: () => drawHeader(),
   });
 
-  drawFooter(pageNumber, totalPagesPlaceholder);
-  pdf.putTotalPages(totalPagesPlaceholder);
+  const totalPages = pdf.getNumberOfPages();
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+    pdf.setPage(pageNumber);
+    drawFooter(pageNumber, totalPages);
+  }
   pdf.save(filename);
   return { success: true, count: requests.length, filename };
 }
