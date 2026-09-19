@@ -33,6 +33,7 @@ import {
   CorridorPolyline
 } from '../data/corridorCoordinates';
 import { getAffectedTrains } from '../data/trainData';
+import { calculateSectionDelays } from '../utils/delayCalculator';
 
 interface LiveAnalyticsMapDashboardProps {
   currentUser: User;
@@ -115,6 +116,7 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
   const [highlightedRequestId, setHighlightedRequestId] = useState<string | null>(null);
+  const [isolatedRequestId, setIsolatedRequestId] = useState<string | null>(null);
   const [simulationActiveOnly, setSimulationActiveOnly] = useState<boolean>(false);
   const [isLegendOpen, setIsLegendOpen] = useState<boolean>(true);
 
@@ -149,7 +151,7 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
   };
 
   // Filter requests based on department, zone, and category filter
-  const filteredRequests = useMemo(() => {
+  const filteredRequisitions = useMemo(() => {
     const conflictIds = new Set<string>();
     const pendingRequests = allRequests.filter((request) => request.status === 'PENDING');
     pendingRequests.forEach((request, index) => {
@@ -197,6 +199,13 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
     });
   }, [allRequests, activeZone, selectedDeptFilter, selectedStatusFilter, simulationActiveOnly]);
 
+  const tableRequisitions = useMemo(
+    () => isolatedRequestId
+      ? filteredRequisitions.filter((request) => request.id === isolatedRequestId)
+      : filteredRequisitions,
+    [filteredRequisitions, isolatedRequestId]
+  );
+
   const conflictRequestIds = useMemo(() => {
     const ids = new Set<string>();
     const pendingRequests = allRequests.filter((request) => request.status === 'PENDING');
@@ -232,7 +241,7 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
     let cautionOrdersKm = 0;
     let bundledWindowsCount = 0;
 
-    filteredRequests.forEach((req) => {
+    filteredRequisitions.forEach((req) => {
       const hours = (req.durationMinutes || 180) / 60;
       const cat = getRequestCategory(req);
 
@@ -258,6 +267,20 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
     const totalDivisionTrackCapacityHours = activeZone === 'ALL' ? 1920 : 384;
     const utilizationRate = Math.min(100, Math.round((totalMaintenanceHours / totalDivisionTrackCapacityHours) * 100 * 10) / 10);
     const safetyLimit = activeZone === 'ALL' ? 32 : 8; // Max simultaneous corridor blocks
+    const sectionImpact = new Map<string, number>();
+    const bundleDepartments = new Map<string, Set<Department>>();
+    filteredRequisitions.forEach((req) => {
+      const delays = calculateSectionDelays(req.approvedDurationMinutes || req.durationMinutes, req.section);
+      sectionImpact.set(req.section, (sectionImpact.get(req.section) || 0) + delays.passengerDelayMins + delays.freightDelayMins);
+      if (req.isShadowBundle || req.shadowBlockEligible) {
+        const key = `${req.requestedDate}|${normalizeSection(req.section)}`;
+        const departments = bundleDepartments.get(key) || new Set<Department>();
+        departments.add(req.department);
+        bundleDepartments.set(key, departments);
+      }
+    });
+    const topAffectedLineSegment = Array.from(sectionImpact.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || 'None';
+    const coordinatedBundleCount = Array.from(bundleDepartments.values()).filter((departments) => departments.size > 1).length;
 
     return {
       engHours: Math.round(engHours * 10) / 10,
@@ -271,8 +294,10 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
       utilizationRate,
       cautionOrdersKm: Math.round(cautionOrdersKm * 10) / 10,
       bundledWindowsCount,
+      topAffectedLineSegment,
+      coordinatedBundleCount,
     };
-  }, [filteredRequests, activeZone]);
+  }, [filteredRequisitions, activeZone]);
 
   // Initialize Leaflet Map with a light political base layer.
   useEffect(() => {
@@ -344,14 +369,13 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
         : CORRIDOR_POLYLINES.filter((c) => c.zone === activeZone);
 
     corridorsToRender.forEach((corr) => {
-      const corrRequests = filteredRequests.filter(
+      const corrRequests = filteredRequisitions.filter(
         (r) => r.section.includes(corr.code) || corr.name.includes(r.section)
       );
-      if ((selectedStatusFilter !== 'ALL' || selectedDeptFilter !== 'ALL' || simulationActiveOnly) && corrRequests.length === 0) return;
+      if (corrRequests.length === 0) return;
 
       const hasActive = corrRequests.some((r) => getRequestCategory(r) === 'ACTIVE');
       const hasApproved = corrRequests.some((r) => getRequestCategory(r) === 'SCHEDULED');
-      const hasPending = corrRequests.some((r) => getRequestCategory(r) === 'PENDING');
       const hasConflict = corrRequests.some((r) => conflictRequestIds.has(r.id));
       const hasBundle = corrRequests.some((r) => r.isShadowBundle || r.shadowBlockEligible);
 
@@ -367,11 +391,11 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
         lineColor = '#F59E0B';
         lineDash = '6, 6';
         lineWeight = 5;
-      } else if (hasBundle) {
+      } else if (hasBundle || hasApproved) {
         lineColor = '#2563EB';
         lineWeight = 5;
-      } else if (hasApproved || hasPending) {
-        lineColor = '#16A34A';
+      } else {
+        lineColor = '#F59E0B';
         lineWeight = 5;
       }
 
@@ -432,8 +456,12 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
       !activeZone || activeZone === 'ALL'
         ? Object.values(STATIONS)
         : Object.values(STATIONS).filter((s) => s.zone === activeZone);
+    const matchedCoordinates = filteredRequisitions.map((request) => getCoordinatesForBlockRequest(request));
+    const matchedStations = stationsToRender.filter((station) =>
+      matchedCoordinates.some((coords) => Math.abs(station.lat - coords.lat) + Math.abs(station.lng - coords.lng) < 0.18)
+    );
 
-    stationsToRender.forEach((stn: StationNode) => {
+    matchedStations.forEach((stn: StationNode) => {
       const stationIcon = L.divIcon({
         className: 'custom-station-node',
         html: `
@@ -465,7 +493,7 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
 
       stationsLayerGroupRef.current?.addLayer(marker);
     });
-  }, [allRequests, filteredRequests, selectedDeptFilter, selectedStatusFilter, simulationActiveOnly, conflictRequestIds]);
+  }, [filteredRequisitions, activeZone, selectedDeptFilter, selectedStatusFilter, simulationActiveOnly, conflictRequestIds]);
 
   // Update Block Requisition Pins on Map
   useEffect(() => {
@@ -474,29 +502,41 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
 
     markersLayerGroupRef.current.clearLayers();
 
-    filteredRequests.forEach((req) => {
+    filteredRequisitions.forEach((req) => {
       const coords = getCoordinatesForBlockRequest(req);
       const category = getRequestCategory(req);
       const isHighlighted = highlightedRequestId === req.id;
+      const isConflict = conflictRequestIds.has(req.id);
+      const matchingStation = Object.values(STATIONS).sort(
+        (a, b) => (Math.abs(a.lat - coords.lat) + Math.abs(a.lng - coords.lng)) - (Math.abs(b.lat - coords.lat) + Math.abs(b.lng - coords.lng))
+      )[0];
+      const effectiveDuration = req.approvedDurationMinutes || req.durationMinutes || 180;
+      const delayMetrics = calculateSectionDelays(effectiveDuration, req.section);
+      const passengerDelay = req.passengerDelayMins ?? delayMetrics.passengerDelayMins;
+      const freightDelay = req.freightDelayMins ?? delayMetrics.freightDelayMins;
 
       // Color scheme based on Legend:
       // 🔴 Active WIP (#EF4444)
-      // 🟢 Scheduled / Approved (#10B981)
-      // 🟡 Pending AI Optimization (#F59E0B)
+      // 🔵 Scheduled / Approved (#2563EB)
+      // 🟡 Pending or conflict zone (#F59E0B)
       let pinColor = '#F59E0B';
       let ringPing = '';
       let badgeLabel = 'PENDING';
       let deptBorder = 'border-amber-400';
 
-      if (category === 'ACTIVE') {
+      if (isConflict) {
+        pinColor = '#F59E0B';
+        badgeLabel = 'CONFLICT ZONE';
+        deptBorder = 'border-amber-500';
+      } else if (category === 'ACTIVE') {
         pinColor = '#EF4444';
         ringPing = '<span class="absolute -inset-1 rounded-full bg-red-500 opacity-75 animate-ping"></span>';
         badgeLabel = 'ACTIVE WIP';
         deptBorder = 'border-red-500';
       } else if (category === 'SCHEDULED') {
-        pinColor = '#10B981';
+        pinColor = '#2563EB';
         badgeLabel = 'APPROVED';
-        deptBorder = 'border-emerald-500';
+        deptBorder = 'border-blue-500';
       } else {
         pinColor = '#F59E0B';
         badgeLabel = 'PENDING AI';
@@ -516,6 +556,9 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
           </div>
           <div class="absolute -top-3 right-0 w-3 h-3 rounded-full bg-white border border-slate-800 flex items-center justify-center text-[7px] font-mono font-bold text-slate-900 shadow">
             ${req.department === 'ENGINEERING' ? 'P' : req.department === 'ST' ? 'S' : 'O'}
+          </div>
+          <div class="absolute top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-950/90 px-1.5 py-0.5 text-[9px] font-mono font-bold text-white shadow-md border border-slate-700">
+            ${matchingStation?.code || 'SITE'} | ${req.department} | ${effectiveDuration}m
           </div>
         </div>
       `;
@@ -568,8 +611,10 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-slate-500 font-medium">Time Window:</span>
-              <span class="font-mono font-bold text-slate-900">${req.requestedStartTime} -> ${req.requestedEndTime} (${req.durationMinutes} mins)</span>
+              <span class="font-mono font-bold text-slate-900">${req.requestedStartTime} -> ${req.requestedEndTime} (${effectiveDuration} mins)</span>
             </div>
+            <div><strong>Impact:</strong> ${passengerDelay}m Passenger | ${freightDelay}m Freight</div>
+            <div><strong>Safety Margin:</strong> ${req.speedRestrictionKmH && req.speedRestrictionKmH < 45 ? 'Caution restriction active' : 'Within operating margin'}</div>
             <div class="flex items-center justify-between">
               <span class="text-slate-500 font-medium">Caution / Speed:</span>
               <span class="font-bold text-amber-800">${req.speedRestrictionKmH ? `${req.speedRestrictionKmH} km/h` : 'No Restriction'}</span>
@@ -589,7 +634,7 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
 
           {/* Work Description Brief */}
           <div class="text-[11px] text-slate-600 bg-amber-50/60 p-2 rounded border border-amber-200/60 mb-2.5 line-clamp-2">
-            <strong>Scope:</strong> ${req.workDescription}
+            <strong>Work Description:</strong> ${req.workDescription}
           </div>
 
           {/* Interactive Button */}
@@ -606,6 +651,11 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
 
       // Attach button click event handler when popup opens
       marker.on('popupopen', () => {
+        setIsolatedRequestId(req.id);
+        setHighlightedRequestId(req.id);
+        window.setTimeout(() => {
+          document.getElementById(`map-req-row-${req.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
         setTimeout(() => {
           const btn = document.getElementById(`btn-popup-view-req-${req.id}`);
           if (btn) {
@@ -618,7 +668,7 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
 
       markersLayerGroupRef.current?.addLayer(marker);
     });
-  }, [filteredRequests, highlightedRequestId, onViewRequestDetail]);
+  }, [filteredRequisitions, highlightedRequestId, onViewRequestDetail]);
 
   // Corridor preset camera flyTo
   const handleCorridorJump = (lat: number, lng: number, zoom: number = 12) => {
@@ -753,6 +803,25 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
       >
         {/* Leaflet DOM Anchor */}
         <div ref={mapContainerRef} className="w-full h-full relative z-0" style={{ background: '#020617' }} />
+
+        {filteredRequisitions.length === 0 && (
+          <div className="absolute inset-x-4 top-1/2 z-20 -translate-y-1/2 rounded-lg border border-slate-600 bg-slate-950/90 px-4 py-3 text-center text-sm font-semibold text-slate-100 shadow-2xl backdrop-blur-md">
+            0 Active Corridor Possessions for selected filters
+          </div>
+        )}
+
+        {/* Dynamic analytical summary stays above the map and follows active filters. */}
+        <div className="absolute top-3 right-16 z-20 w-64 rounded-lg border border-slate-700/80 bg-slate-950/90 p-3 text-white shadow-2xl backdrop-blur-md">
+          <div className="mb-2 flex items-center gap-1.5 border-b border-slate-800 pb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-200">
+            <Activity className="h-3.5 w-3.5 text-cyan-400" />
+            Analytical Summary
+          </div>
+          <div className="space-y-1.5 text-[11px]">
+            <div className="flex justify-between"><span className="text-slate-400">Active Possessions</span><strong>{filteredRequisitions.length}</strong></div>
+            <div className="flex justify-between gap-3"><span className="text-slate-400">Top Affected Line Segment</span><strong className="truncate text-right text-amber-300" title={analyticsData.topAffectedLineSegment}>{analyticsData.topAffectedLineSegment}</strong></div>
+            <div className="flex justify-between"><span className="text-slate-400">Coordinated Joint Bundles</span><strong>{analyticsData.coordinatedBundleCount}</strong></div>
+          </div>
+        </div>
 
         {/* Floating Map Legend Panel (Specification 3) */}
         <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-20 bg-slate-950/85 backdrop-blur-md border border-slate-700/80 rounded-lg p-2.5 sm:p-3 text-white shadow-2xl max-w-[210px] sm:max-w-[260px]">
@@ -1022,7 +1091,7 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
           <div>
             <h2 className="text-base font-bold text-[#000075] flex items-center space-x-2">
               <Train className="w-4 h-4 text-blue-900" />
-              <span>Active Corridor Requisitions On Political Grid ({filteredRequests.length})</span>
+              <span>Active Corridor Requisitions On Political Grid ({filteredRequisitions.length})</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Click any section below to immediately locate and zoom the map directly to the work site.
@@ -1030,7 +1099,16 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
           </div>
 
           <div className="text-xs text-slate-600 font-medium">
-            Showing <strong className="text-slate-900">{filteredRequests.length}</strong> plotted points
+            Showing <strong className="text-slate-900">{filteredRequisitions.length}</strong> plotted points
+            {isolatedRequestId && (
+              <button
+                type="button"
+                onClick={() => { setIsolatedRequestId(null); setHighlightedRequestId(null); }}
+                className="ml-2 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-900"
+              >
+                Clear map isolation
+              </button>
+            )}
           </div>
         </div>
 
@@ -1048,20 +1126,21 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filteredRequests.length === 0 ? (
+              {tableRequisitions.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400">
                     No block requisitions match the current department or status filters.
                   </td>
                 </tr>
               ) : (
-                filteredRequests.map((req) => {
+                tableRequisitions.map((req) => {
                   const coords = getCoordinatesForBlockRequest(req);
                   const cat = getRequestCategory(req);
 
                   return (
                     <tr
                       key={req.id}
+                      id={`map-req-row-${req.id}`}
                       className="hover:bg-blue-50/40 transition-colors cursor-pointer"
                       onClick={() => handleCorridorJump(coords.lat, coords.lng, 13)}
                     >
