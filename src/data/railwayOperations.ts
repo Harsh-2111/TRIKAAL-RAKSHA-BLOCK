@@ -27,12 +27,38 @@ export interface SectionTimetableRecord {
 
 export interface CorridorCapacityRecord {
   section: string;
+  sectionId: string;
+  sectionName: string;
+  zoneCode: RailwayZoneCode;
+  divisionName: string;
+  kmStart: string;
+  kmEnd: string;
   totalTracks: number;
   lineType: string;
   dailyTrainCount: number;
   criticalityTier: string;
   maxHourlyCapacity: number;
 }
+
+const CORRIDOR_ZONE_METADATA: Record<string, { zoneCode: RailwayZoneCode; divisionName: string; kmStart: string; kmEnd: string }> = {
+  'NDLS-GZB': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
+  'GZB-ALJN': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
+  'NDLS-PWL': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
+  'PWL-MTJ': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
+  'DLI-DEC': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
+  'DEC-GGN': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
+  'NZM-FDB': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
+  'GZB-MTC': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
+  'PNP-UMB': { zoneCode: 'NR', divisionName: 'Delhi Division (DLI)', kmStart: '00/00', kmEnd: '00/00' },
+  'VAPI-ST': { zoneCode: 'WR', divisionName: 'Mumbai Central Division (MMCT)', kmStart: '00/00', kmEnd: '00/00' },
+};
+
+const corridorMetadata = (section: string) => CORRIDOR_ZONE_METADATA[section.toUpperCase()] || {
+  zoneCode: 'ALL' as RailwayZoneCode,
+  divisionName: 'Indian Railways',
+  kmStart: '00/00',
+  kmEnd: '00/00',
+};
 
 export interface DefectRecord {
   defectId: string;
@@ -233,6 +259,9 @@ export const SECTION_TIMETABLE: SectionTimetableRecord[] = timetableRows.map((ro
 
 export const CORRIDOR_CAPACITY: CorridorCapacityRecord[] = capacityRows.map((row) => ({
   section: row.section,
+  sectionId: normalizeRailwaySection(row.section),
+  sectionName: row.section,
+  ...corridorMetadata(row.section),
   totalTracks: Number(row.total_tracks || 0),
   lineType: row.line_type || 'Unknown',
   dailyTrainCount: Number(row.daily_train_count || 0),
@@ -294,8 +323,12 @@ const TRAIN_BY_NUMBER = new Map(TRAIN_MASTER.map((train) => [train.trainNumber, 
 
 const capacityBySection = new Map<string, CorridorCapacityRecord>();
 capacityRows.forEach((row) => {
+  const metadata = corridorMetadata(row.section);
   capacityBySection.set(normalizeRailwaySection(row.section), {
     section: row.section,
+    sectionId: normalizeRailwaySection(row.section),
+    sectionName: row.section,
+    ...metadata,
     totalTracks: Number(row.total_tracks || 0),
     lineType: row.line_type || 'Unknown',
     dailyTrainCount: Number(row.daily_train_count || 0),

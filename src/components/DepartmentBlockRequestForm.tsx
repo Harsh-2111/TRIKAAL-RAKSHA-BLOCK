@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { BlockRequest, Department, RailwayZoneCode, UrgencyLevel, User } from '../types';
 import { DEPARTMENT_CONFIG } from '../data/mockData';
-import { DEFECTS, getDefectAutofill, resolveRequestZoneCode } from '../data/railwayOperations';
+import { CorridorCapacityRecord, DEFECTS, getCorridorCapacity, getDefectAutofill, resolveRequestZoneCode } from '../data/railwayOperations';
 
 interface DepartmentBlockRequestFormProps {
   currentUser: User;
@@ -67,7 +67,8 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   const todayStr = new Date().toISOString().split('T')[0];
 
   // Form State
-  const [selectedSectionPreset, setSelectedSectionPreset] = useState<string>(SECTION_PRESETS[0]);
+  const [selectedSectionPreset, setSelectedSectionPreset] = useState<string>('');
+  const [filteredCorridors, setFilteredCorridors] = useState<CorridorCapacityRecord[]>([]);
   const [customSectionText, setCustomSectionText] = useState<string>('');
   const [blockType, setBlockType] = useState<string>(defaultBlockType);
   const [proposedDate, setProposedDate] = useState<string>(todayStr);
@@ -83,6 +84,12 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showErrorBanner, setShowErrorBanner] = useState<boolean>(false);
+
+  useEffect(() => {
+    const corridors = getCorridorCapacity().filter((corridor) => activeZone === 'ALL' || corridor.zoneCode === activeZone);
+    setFilteredCorridors(corridors);
+    setSelectedSectionPreset((current) => corridors.some((corridor) => corridor.sectionId === current) ? current : corridors[0]?.sectionId || '');
+  }, [activeZone]);
 
   // Auto-calculate duration in hours and minutes
   const calculateDuration = () => {
@@ -101,6 +108,8 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   };
 
   const durationInfo = calculateDuration();
+  const selectedCorridor = filteredCorridors.find((corridor) => corridor.sectionId === selectedSectionPreset);
+  const selectedDivisionName = selectedCorridor?.divisionName || (activeZone === 'ALL' ? currentUser.division : `${activeZone} Division`);
 
   const departmentDefects = DEFECTS.filter((defect) => {
     const normalizedDepartment = defect.department.toUpperCase().replace(/[\s&]/g, '') === 'ST'
@@ -136,7 +145,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
     const resolvedSection =
       selectedSectionPreset === 'Custom Section (Type Below)'
         ? customSectionText.trim()
-        : selectedSectionPreset;
+        : selectedCorridor?.sectionName || selectedSectionPreset;
 
     if (!resolvedSection) {
       errs.section = 'Railway Division & Section is required.';
@@ -186,7 +195,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
     const resolvedSection =
       selectedSectionPreset === 'Custom Section (Type Below)'
         ? customSectionText.trim()
-        : selectedSectionPreset;
+        : selectedCorridor?.sectionName || selectedSectionPreset;
 
     const allMachinery = [
       ...selectedMachineryChips,
@@ -281,7 +290,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   };
 
   const handleResetForm = () => {
-    setSelectedSectionPreset(SECTION_PRESETS[0]);
+    setSelectedSectionPreset(filteredCorridors[0]?.sectionId || '');
     setCustomSectionText('');
     setBlockType(defaultBlockType);
     setProposedDate(todayStr);
@@ -312,7 +321,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
               </h2>
             </div>
             <p className="text-xs text-blue-200 mt-0.5">
-              Department: <strong className="text-white">{deptConfig.name}</strong> • Officer ID:{' '}
+              Department: <strong className="text-white">{deptConfig.name}</strong> • Division: <strong className="text-white">{selectedDivisionName} ({activeZone})</strong> • Officer ID:{' '}
               <span className="font-mono text-amber-300">{currentUser.employeeId}</span>
             </p>
           </div>
@@ -388,11 +397,12 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
                 errors.section ? 'border-red-500' : 'border-slate-300'
               }`}
             >
-              {SECTION_PRESETS.map((sec) => (
-                <option key={sec} value={sec}>
-                  {sec}
+              {filteredCorridors.map((corridor) => (
+                <option key={corridor.sectionId} value={corridor.sectionId}>
+                  {corridor.sectionName} (KM {corridor.kmStart} - {corridor.kmEnd})
                 </option>
               ))}
+              <option value="Custom Section (Type Below)">Custom Section (Type Below)</option>
             </select>
 
             {selectedSectionPreset === 'Custom Section (Type Below)' && (

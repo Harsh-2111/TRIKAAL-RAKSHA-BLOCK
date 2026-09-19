@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   Plus,
@@ -10,7 +10,7 @@ import {
   TrainTrack
 } from 'lucide-react';
 import { DEPARTMENT_CONFIG, RAILWAY_SECTIONS } from '../data/mockData';
-import { resolveRequestZoneCode } from '../data/railwayOperations';
+import { CorridorCapacityRecord, getCorridorCapacity, resolveRequestZoneCode } from '../data/railwayOperations';
 import { BlockPriority, BlockRequest, Department, RailwayZoneCode, User } from '../types';
 
 interface NewRequestModalProps {
@@ -35,7 +35,8 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const [sectionCode, setSectionCode] = useState(RAILWAY_SECTIONS[0].code);
+  const [sectionCode, setSectionCode] = useState('');
+  const [filteredCorridors, setFilteredCorridors] = useState<CorridorCapacityRecord[]>([]);
   const [stationFrom, setStationFrom] = useState('');
   const [stationTo, setStationTo] = useState('');
   const [lineType, setLineType] = useState('DN Main');
@@ -58,8 +59,20 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
 
   // Selected section object
-  const currentSection =
-    RAILWAY_SECTIONS.find((s) => s.code === sectionCode) || RAILWAY_SECTIONS[0];
+  useEffect(() => {
+    const corridors = getCorridorCapacity().filter((corridor) => activeZone === 'ALL' || corridor.zoneCode === activeZone);
+    setFilteredCorridors(corridors);
+    setSectionCode((current) => corridors.some((corridor) => corridor.sectionId === current) ? current : corridors[0]?.sectionId || '');
+  }, [activeZone]);
+
+  const selectedCorridor = filteredCorridors.find((corridor) => corridor.sectionId === sectionCode);
+  const currentSection = RAILWAY_SECTIONS.find((section) => section.code === sectionCode) || {
+    code: sectionCode,
+    name: selectedCorridor?.sectionName || '',
+    kmSpan: selectedCorridor ? `KM ${selectedCorridor.kmStart} - ${selectedCorridor.kmEnd}` : 'KM 00/00 - 00/00',
+    trafficDensity: selectedCorridor?.criticalityTier || 'CSV corridor capacity',
+    lines: selectedCorridor ? [selectedCorridor.lineType] : ['Main Line'],
+  };
 
   const calculateDuration = () => {
     if (!requestedStartTime || !requestedEndTime) return 0;
@@ -117,7 +130,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
     const effectiveZoneCode = activeZone !== 'ALL' ? activeZone : currentUser.zoneCode || resolveRequestZoneCode({
       zone: currentUser.zone,
       division: currentUser.division,
-      section: currentSection.name,
+      section: selectedCorridor?.sectionName || currentSection.name,
     });
     const effectiveZoneName = currentUser.zone || (effectiveZoneCode !== 'ALL' ? `${effectiveZoneCode} Railway` : 'Indian Railways');
 
@@ -182,7 +195,7 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-blue-200">
-                Department: <strong>{deptConfig?.name}</strong> • Division: {currentUser.division}
+                Department: <strong>{deptConfig?.name}</strong> • Division: {selectedCorridor?.divisionName || currentUser.division} ({activeZone})
               </p>
             </div>
           </div>
@@ -236,9 +249,9 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
                   }}
                   className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-blue-600 focus:border-blue-600 bg-white"
                 >
-                  {RAILWAY_SECTIONS.map((sec) => (
-                    <option key={sec.code} value={sec.code}>
-                      {sec.name} ({sec.kmSpan})
+                  {filteredCorridors.map((corridor) => (
+                    <option key={corridor.sectionId} value={corridor.sectionId}>
+                      {corridor.sectionName} (KM {corridor.kmStart} - {corridor.kmEnd})
                     </option>
                   ))}
                 </select>
