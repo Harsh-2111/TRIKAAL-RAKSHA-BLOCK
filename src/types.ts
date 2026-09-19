@@ -73,6 +73,8 @@ export interface BlockRequest {
   requestedStartTime: string;
   requestedEndTime: string;
   durationMinutes: number;
+  passengerDelayMins?: number;
+  freightDelayMins?: number;
   durationFormatted?: string;
   powerBlockRequired: boolean;
   trafficBlockRequired: boolean;

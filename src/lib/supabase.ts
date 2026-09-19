@@ -151,6 +151,8 @@ export function dbToBlockRequest(row: any): BlockRequest {
     requestedStartTime: startTime,
     requestedEndTime: endTime,
     durationMinutes: Number(storedRequest.duration_minutes ?? storedRequest.durationMinutes ?? Number(storedRequest.duration_hours || 3) * 60),
+    passengerDelayMins: storedRequest.passenger_delay_mins ?? storedRequest.passengerDelayMins ?? undefined,
+    freightDelayMins: storedRequest.freight_delay_mins ?? storedRequest.freightDelayMins ?? undefined,
     durationFormatted: storedRequest.duration_formatted ?? storedRequest.durationFormatted ?? '3 hrs 00 mins',
     powerBlockRequired: Boolean(storedRequest.power_block_required ?? storedRequest.powerBlockRequired ?? false),
     trafficBlockRequired: Boolean(storedRequest.traffic_block_required ?? storedRequest.trafficBlockRequired ?? true),

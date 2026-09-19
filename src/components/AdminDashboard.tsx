@@ -38,6 +38,7 @@ import { exportRequestsToCsv } from '../utils/exportUtils';
 import { MLPredictionResult, predictRiskScore } from '../services/mlService';
 import { GeminiChatPanel } from './GeminiChatPanel';
 import { AffectedTrainsModal } from './AffectedTrainsModal';
+import { calculateSectionDelays } from '../utils/delayCalculator';
 
 interface AdminDashboardProps {
   currentUser: User;
@@ -926,6 +927,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             Granted: {req.approvedStartTime} - {req.approvedEndTime}
                           </div>
                         )}
+                        {(() => {
+                          const delayDuration = req.approvedDurationMinutes || req.durationMinutes || 180;
+                          const calculatedDelays = calculateSectionDelays(delayDuration, req.section);
+                          const pDelay = req.approvedDurationMinutes
+                            ? calculatedDelays.passengerDelayMins
+                            : req.passengerDelayMins ?? calculatedDelays.passengerDelayMins;
+                          const fDelay = req.approvedDurationMinutes
+                            ? calculatedDelays.freightDelayMins
+                            : req.freightDelayMins ?? calculatedDelays.freightDelayMins;
+
+                          return (
+                            <span className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono font-medium bg-slate-900 text-blue-300 border border-slate-700">
+                              {pDelay}m P | {fDelay}m F
+                            </span>
+                          );
+                        })()}
                         {/* Live IRCTC Train Impact Simulation Tag */}
                         {(() => {
                           const effDuration = req.approvedDurationMinutes || req.durationMinutes;

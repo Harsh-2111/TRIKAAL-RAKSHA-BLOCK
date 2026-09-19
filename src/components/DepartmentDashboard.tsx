@@ -30,6 +30,7 @@ import { BlockPriority, BlockRequest, BlockStatus, Department, UrgencyLevel, Use
 import { DepartmentBlockRequestForm } from './DepartmentBlockRequestForm';
 import { FieldRosterModal } from './FieldRosterModal';
 import { exportRequestsToCsv } from '../utils/exportUtils';
+import { calculateSectionDelays } from '../utils/delayCalculator';
 
 interface DepartmentDashboardProps {
   currentUser: User;
@@ -553,6 +554,22 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
                               Granted: {req.approvedStartTime} - {req.approvedEndTime}
                             </div>
                           )}
+                          {(() => {
+                            const delayDuration = req.approvedDurationMinutes || req.durationMinutes || 180;
+                            const calculatedDelays = calculateSectionDelays(delayDuration, req.section);
+                            const pDelay = req.approvedDurationMinutes
+                              ? calculatedDelays.passengerDelayMins
+                              : req.passengerDelayMins ?? calculatedDelays.passengerDelayMins;
+                            const fDelay = req.approvedDurationMinutes
+                              ? calculatedDelays.freightDelayMins
+                              : req.freightDelayMins ?? calculatedDelays.freightDelayMins;
+
+                            return (
+                              <span className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono font-medium bg-slate-900 text-blue-300 border border-slate-700">
+                                {pDelay}m P | {fDelay}m F
+                              </span>
+                            );
+                          })()}
                         </td>
 
                         {/* 5. Urgency Badge */}

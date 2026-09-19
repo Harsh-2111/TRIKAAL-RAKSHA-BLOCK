@@ -1,4 +1,5 @@
 import { BlockRequest, Department, ShadowBlockOpportunity, User, UserRole } from '../types';
+import { calculateSectionDelays } from '../utils/delayCalculator';
 
 export const OFFICIAL_ROLES: Record<UserRole, User> = {
   ENG_OFFICER: {
@@ -288,7 +289,7 @@ export const RAILWAY_SECTIONS = [
   },
 ];
 
-export const INITIAL_BLOCK_REQUESTS: BlockRequest[] = [
+export const INITIAL_BLOCK_REQUESTS: BlockRequest[] = ([
   {
     id: 'RB-ENG-2026-081',
     department: 'ENGINEERING',
@@ -818,7 +819,10 @@ export const INITIAL_BLOCK_REQUESTS: BlockRequest[] = [
     submittedAt: '2026-09-10 14:50 IST',
     safetyChecklistAcknowledged: true,
   },
-];
+].map((request) => ({
+  ...request,
+  ...calculateSectionDelays(request.durationMinutes, request.section),
+})));
 
 const STORAGE_KEY = 'raksha_block_requests_v3_pan_india';
 const CURRENT_USER_KEY = 'raksha_block_current_user_v1';
