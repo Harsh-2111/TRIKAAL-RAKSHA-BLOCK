@@ -19,8 +19,6 @@ import {
   Send,
   Calendar,
   Sparkles,
-  Printer,
-  FileSpreadsheet,
   Download,
   HardHat,
   ShieldCheck
@@ -28,8 +26,7 @@ import {
 import { DEPARTMENT_CONFIG } from '../data/mockData';
 import { BlockPriority, BlockRequest, BlockStatus, Department, UrgencyLevel, User, RailwayZoneCode } from '../types';
 import { DepartmentBlockRequestForm } from './DepartmentBlockRequestForm';
-import { FieldRosterModal } from './FieldRosterModal';
-import { exportRequestsToCsv } from '../utils/exportUtils';
+import { exportRequestsToCsv, exportRequestsToOfficialPdf } from '../utils/exportUtils';
 import { calculateSectionDelays } from '../utils/delayCalculator';
 
 interface DepartmentDashboardProps {
@@ -68,14 +65,16 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
   // Success Banner state for Phase 2
   const [latestSubmittedId, setLatestSubmittedId] = useState<string | null>(null);
 
-  // Phase 5: Official Field Roster PDF Modal state
-  const [isFieldRosterOpen, setIsFieldRosterOpen] = useState(false);
-
   // CSV / Excel Export Handler
   const handleExportCsv = () => {
     const dateStr = new Date().toISOString().slice(0, 10);
     const filename = `RAKSHA_BLOCK_${deptConfig.code}_Demands_${dateStr}.csv`;
     exportRequestsToCsv(filteredRequests, filename);
+  };
+
+  const handleExportPdf = () => {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    exportRequestsToOfficialPdf(filteredRequests, `RAKSHA_BLOCK_${deptConfig.code}_Corridor_Report_${dateStr}.pdf`);
   };
 
   const isolatedRequests = useMemo(() => {
@@ -246,28 +245,26 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
 
         {/* Action Buttons for Department Console */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Phase 5: Export Official PDF Roster */}
-          <button
-            id="dept-export-pdf-roster-btn"
-            onClick={() => setIsFieldRosterOpen(true)}
-            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-md text-xs font-bold text-white bg-linear-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 transition-all shadow-xs cursor-pointer"
-            title="Generate official Indian Railways Field Maintenance Roster (PDF)"
-          >
-            <Printer className="w-3.5 h-3.5 text-emerald-200" />
-            <span>Export Official PDF Roster</span>
-          </button>
-
-          {/* Phase 5: Export Schedule CSV/Excel */}
-          <button
-            id="dept-export-csv-btn"
-            onClick={handleExportCsv}
-            className="flex items-center space-x-1.5 px-3 py-2 rounded-md text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
-            title="Download CSV / Excel file of current department demands"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Export Schedule (CSV)</span>
-            <span className="sm:hidden">CSV</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              id="dept-export-pdf-btn"
+              onClick={handleExportPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium text-slate-800 bg-white hover:bg-slate-100 border border-slate-300"
+              title="Download official corridor possession report as PDF"
+            >
+              <FileText className="w-4 h-4 text-red-500" />
+              <span>Export PDF</span>
+            </button>
+            <button
+              id="dept-export-csv-btn"
+              onClick={handleExportCsv}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium text-slate-800 bg-white hover:bg-slate-100 border border-slate-300"
+              title="Download clean corridor possession report as CSV"
+            >
+              <Download className="w-4 h-4 text-emerald-500" />
+              <span>Export CSV</span>
+            </button>
+          </div>
 
           {/* Action Button to Switch to Submit Form */}
           <button
@@ -470,25 +467,6 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
 
               <div className="h-4 w-px bg-slate-300 mx-0.5 hidden sm:block" />
 
-              {/* Table Quick Export CSV */}
-              <button
-                onClick={handleExportCsv}
-                className="flex items-center space-x-1 px-2 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 transition-colors cursor-pointer"
-                title="Export currently filtered table rows to CSV"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Export CSV ({filteredRequests.length})</span>
-              </button>
-
-              {/* Table Quick PDF Roster */}
-              <button
-                onClick={() => setIsFieldRosterOpen(true)}
-                className="flex items-center space-x-1 px-2 py-1 text-xs font-semibold text-blue-900 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 transition-colors cursor-pointer"
-                title="View and print official PDF Maintenance Roster"
-              >
-                <Printer className="w-3.5 h-3.5 text-blue-700" />
-                <span>PDF Roster</span>
-              </button>
             </div>
           </div>
 
@@ -662,13 +640,6 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
         </div>
       )}
 
-      {/* MODAL: Official Field Execution Roster (Printable PDF & Excel) */}
-      <FieldRosterModal
-        isOpen={isFieldRosterOpen}
-        onClose={() => setIsFieldRosterOpen(false)}
-        requests={isolatedRequests}
-        currentUser={currentUser}
-      />
     </div>
   );
 };

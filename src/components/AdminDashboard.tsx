@@ -19,9 +19,8 @@ import {
   Zap,
   Info,
   Cpu,
-  Printer,
-  FileSpreadsheet,
   Download,
+  FileText,
   HardHat,
   Trash2
 } from 'lucide-react';
@@ -31,10 +30,9 @@ import { AdminApproveModal } from './AdminApproveModal';
 import { AdminRejectModal } from './AdminRejectModal';
 import { AdminModifyModal } from './AdminModifyModal';
 import { AiOptimizerModal } from './AiOptimizerModal';
-import { FieldRosterModal } from './FieldRosterModal';
 import { AiCoPilotModal } from './AiCoPilotModal';
 import { calculateTrainImpact } from './TrainImpactWidget';
-import { exportRequestsToCsv } from '../utils/exportUtils';
+import { exportRequestsToCsv, exportRequestsToOfficialPdf } from '../utils/exportUtils';
 import { MLPredictionResult, predictRiskScore } from '../services/mlService';
 import { GeminiChatPanel } from './GeminiChatPanel';
 import { AffectedTrainsModal } from './AffectedTrainsModal';
@@ -130,15 +128,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Phase 4: AI CP-SAT Solver Modal state
   const [isAiOptimizerOpen, setIsAiOptimizerOpen] = useState(false);
 
-  // Phase 5: Official Field Roster PDF Modal state
-  const [isFieldRosterOpen, setIsFieldRosterOpen] = useState(false);
-
-  // Export filtered requests or approved requests to CSV
-  const handleExportCsv = (customList?: BlockRequest[], customName?: string) => {
-    const listToExport = customList || filteredRequests;
+  const handleExportCsv = () => {
     const dateStr = new Date().toISOString().slice(0, 10);
-    const filename = customName || `RAKSHA_BLOCK_Approved_Roster_${dateStr}.csv`;
-    exportRequestsToCsv(listToExport, filename);
+    exportRequestsToCsv(filteredRequests, `RAKSHA_BLOCK_Corridor_Report_${dateStr}.csv`);
+  };
+
+  const handleExportPdf = () => {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    exportRequestsToOfficialPdf(filteredRequests, `RAKSHA_BLOCK_Corridor_Report_${dateStr}.pdf`);
   };
 
   // Conflict popover hover/click state
@@ -428,28 +425,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Phase 5: Prominent Export Official PDF Roster Button */}
-          <button
-            id="export-pdf-roster-btn"
-            onClick={() => setIsFieldRosterOpen(true)}
-            className="flex items-center space-x-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold text-white bg-linear-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 rounded-lg shadow-sm hover:shadow-md border border-emerald-900 transition-all transform active:scale-98 cursor-pointer"
-            title="Generate print-ready official Indian Railways Field Maintenance Roster (PDF)"
-          >
-            <Printer className="w-4 h-4 text-emerald-200" />
-            <span>Export Official PDF Roster</span>
-          </button>
-
-          {/* Phase 5: Export Schedule CSV/Excel Button */}
-          <button
-            id="export-schedule-csv-btn"
-            onClick={() => handleExportCsv()}
-            className="flex items-center space-x-1.5 px-3 py-2 text-xs font-bold text-slate-800 bg-white hover:bg-slate-100 rounded-lg border border-slate-300 transition-colors shadow-xs cursor-pointer"
-            title="Download CSV / Excel schedule of filtered demands"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Export Schedule (CSV/Excel)</span>
-            <span className="sm:hidden">Export CSV</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              id="export-pdf-report-btn"
+              onClick={handleExportPdf}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium text-slate-800 bg-white hover:bg-slate-100 border border-slate-300"
+              title="Download official corridor possession report as PDF"
+            >
+              <FileText className="w-4 h-4 text-red-500" />
+              <span>Export PDF</span>
+            </button>
+            <button
+              id="export-csv-report-btn"
+              onClick={handleExportCsv}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium text-slate-800 bg-white hover:bg-slate-100 border border-slate-300"
+              title="Download clean corridor possession report as CSV"
+            >
+              <Download className="w-4 h-4 text-emerald-500" />
+              <span>Export CSV</span>
+            </button>
+          </div>
 
           {/* Phase 4: Prominent Run AI Block Optimizer Button */}
           <button
@@ -788,26 +783,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
 
             <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block" />
-
-            {/* Quick Export Table CSV Button */}
-            <button
-              onClick={() => handleExportCsv(filteredRequests, `RAKSHA_BLOCK_Filtered_Demands_${new Date().toISOString().slice(0,10)}.csv`)}
-              className="flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 transition-colors cursor-pointer shadow-2xs"
-              title={`Download CSV/Excel of ${filteredRequests.length} currently filtered records`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Export CSV ({filteredRequests.length})</span>
-            </button>
-
-            {/* Quick PDF Roster Button */}
-            <button
-              onClick={() => setIsFieldRosterOpen(true)}
-              className="flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold text-blue-900 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 transition-colors cursor-pointer shadow-2xs"
-              title="Open print-ready official PDF Field Roster"
-            >
-              <Printer className="w-3.5 h-3.5 text-blue-700" />
-              <span>PDF Roster</span>
-            </button>
 
             <GeminiChatPanel currentUser={currentUser} allRequests={allRequests} />
 
@@ -1266,14 +1241,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             updatedReqs.forEach((r) => onAdminAction(r));
           }
         }}
-      />
-
-      {/* MODAL 5: Official Field Execution Roster (Printable PDF & Excel Roster) */}
-      <FieldRosterModal
-        isOpen={isFieldRosterOpen}
-        onClose={() => setIsFieldRosterOpen(false)}
-        requests={allRequests}
-        currentUser={currentUser}
       />
 
       <AffectedTrainsModal
