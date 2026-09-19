@@ -113,6 +113,10 @@ export interface AffectedTrainMovement extends TrainMasterRecord {
   mitigation: string;
 }
 
+export interface AffectedTrainForBlock extends AffectedTrainMovement {
+  emoji: '🚆' | '🚂' | '🛞';
+}
+
 export interface SectionCapacitySummary {
   section: string;
   totalTracks: number;
@@ -414,7 +418,7 @@ export function getAffectedTrains(section = '', durationMinutes = 0): AffectedTr
 }
 
 export function getAffectedTrainMovements(request: Pick<BlockRequest, 'section' | 'requestedStartTime' | 'requestedEndTime' | 'durationMinutes'>): AffectedTrainMovement[] {
-  const requestedSection = normalizeRailwaySection(request.section);
+  const requestedSection = resolveSectionId(request.section);
   const blockStart = toMinutes(request.requestedStartTime);
   const blockEnd = toMinutes(request.requestedEndTime);
   const movements: AffectedTrainMovement[] = [];
@@ -441,6 +445,49 @@ export function getAffectedTrainMovements(request: Pick<BlockRequest, 'section' 
   return movements.sort(
     (left, right) => toMinutes(left.scheduledSectionTime.split(' - ')[0]) - toMinutes(right.scheduledSectionTime.split(' - ')[0]),
   );
+}
+
+const resolveSectionId = (section: string): string => {
+  const normalized = normalizeRailwaySection(section);
+  const corridor = CORRIDOR_CAPACITY.find((entry) => (
+    normalizeRailwaySection(entry.sectionId) === normalized ||
+    normalizeRailwaySection(entry.sectionName) === normalized ||
+    normalizeRailwaySection(entry.section) === normalized
+  ));
+  return corridor?.sectionId || normalized;
+};
+
+const trainEmoji = (train: TrainMasterRecord): '🚆' | '🚂' | '🛞' => {
+  const normalizedType = train.type.toLowerCase();
+  if (normalizedType.includes('freight') || normalizedType.includes('goods')) return '🛞';
+  if (normalizedType.includes('express') || normalizedType.includes('rajdhani') || normalizedType.includes('shatabdi')) return '🚆';
+  return '🚂';
+};
+
+export function getAffectedTrainsForBlock(sectionId: string, startTime: string, endTime: string): AffectedTrainForBlock[] {
+  const requestedSection = resolveSectionId(sectionId);
+  const blockStart = toMinutes(startTime);
+  const blockEnd = toMinutes(endTime);
+
+  return timetableRows
+    .filter((row) => normalizeRailwaySection(row.section) === normalizeRailwaySection(requestedSection))
+    .map((row) => {
+      const train = TRAIN_BY_NUMBER.get(row.train_no || row.train_number);
+      if (!train || !intervalOverlaps(blockStart, blockEnd, toMinutes(row.arr_time), toMinutes(row.dep_time))) return null;
+      const delayMinutes = train.type.toLowerCase().includes('freight') || train.type.toLowerCase().includes('goods')
+        ? Math.max(1, Math.round(Math.max(1, blockEnd - blockStart) / 60 * 25))
+        : Math.max(1, Math.round(Math.max(1, blockEnd - blockStart) / 60 * 12));
+      return {
+        ...train,
+        scheduledSectionTime: `${row.arr_time} - ${row.dep_time}`,
+        direction: row.direction,
+        delayMinutes,
+        mitigation: mitigationFor(train.type, row.direction),
+        emoji: trainEmoji(train),
+      };
+    })
+    .filter((movement): movement is AffectedTrainForBlock => Boolean(movement))
+    .sort((left, right) => toMinutes(left.scheduledSectionTime) - toMinutes(right.scheduledSectionTime));
 }
 
 export function getSectionCapacitySummary(

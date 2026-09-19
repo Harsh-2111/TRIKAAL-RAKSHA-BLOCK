@@ -38,7 +38,7 @@ import { GeminiChatPanel } from './GeminiChatPanel';
 import { AffectedTrainsModal } from './AffectedTrainsModal';
 import { ImpactKpiDashboard } from './ImpactKpiDashboard';
 import { calculateSectionDelays } from '../utils/delayCalculator';
-import { matchesZoneScope } from '../data/railwayOperations';
+import { extractZoneCode, matchesZoneScope } from '../data/railwayOperations';
 
 interface AdminDashboardProps {
   currentUser: User;
@@ -244,7 +244,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const filteredRequests = useMemo(() => {
     return deduplicateRequests(allRequests).filter((req) => {
       // 0. Zone filter
-      if (!matchesZoneScope(req, activeZone)) return false;
+      if (!matchesZoneScope(req, extractZoneCode(activeZone))) return false;
 
       // 1. Department filter
       const matchesDept = selectedDeptTab === 'ALL' || normalizeDepartment(req.department) === selectedDeptTab;
@@ -286,7 +286,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const zoneScopedRequests = useMemo(() => {
     if (!activeZone || activeZone === 'ALL') return allRequests;
-    return allRequests.filter((req) => matchesZoneScope(req, activeZone));
+    return allRequests.filter((req) => matchesZoneScope(req, extractZoneCode(activeZone)));
   }, [allRequests, activeZone]);
 
   // REQUIREMENT 1: Executive Summary Cards (Top Row)

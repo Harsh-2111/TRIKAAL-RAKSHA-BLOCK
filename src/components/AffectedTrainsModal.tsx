@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AlertTriangle, Gauge, Info, Train, X } from 'lucide-react';
 import { BlockRequest } from '../types';
-import { getAffectedTrainMovements, getSectionCapacitySummary } from '../data/railwayOperations';
+import { getAffectedTrainsForBlock, getSectionCapacitySummary } from '../data/railwayOperations';
 
 interface AffectedTrainsModalProps {
   request: BlockRequest | null;
@@ -10,7 +10,7 @@ interface AffectedTrainsModalProps {
 }
 
 export const AffectedTrainsModal: React.FC<AffectedTrainsModalProps> = ({ request, isOpen, onClose }) => {
-  const movements = useMemo(() => (request ? getAffectedTrainMovements(request) : []), [request]);
+  const movements = useMemo(() => (request ? getAffectedTrainsForBlock(request.section, request.requestedStartTime, request.requestedEndTime) : []), [request]);
   const capacity = useMemo(
     () => (request ? getSectionCapacitySummary(request, movements.length) : null),
     [request, movements.length],
@@ -40,6 +40,10 @@ export const AffectedTrainsModal: React.FC<AffectedTrainsModalProps> = ({ reques
             <Metric label="Safety margin envelope" value={capacity.safetyStatus} tone={capacity.safetyStatus === 'WITHIN ENVELOPE' ? 'green' : 'red'} />
           </div>
 
+          <div className="mb-5 inline-flex items-center rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-black text-amber-950">
+            🚆 {movements.length} Trains Affected
+          </div>
+
           <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
               <div className="mb-2 flex items-center gap-2 font-bold text-slate-800"><Gauge className="h-4 w-4 text-blue-700" /> Section capacity &amp; timetable breakdown</div>
@@ -67,7 +71,7 @@ export const AffectedTrainsModal: React.FC<AffectedTrainsModalProps> = ({ reques
                   <tr><td colSpan={5} className="px-3 py-10 text-center text-slate-500"><Info className="mx-auto mb-2 h-7 w-7 text-slate-400" />No timetable movement intersects this block window.</td></tr>
                 ) : movements.map((movement) => (
                   <tr key={`${movement.trainNumber}-${movement.scheduledSectionTime}`} className="hover:bg-blue-50/40">
-                    <td className="px-3 py-3"><div className="font-mono font-bold text-blue-950">{movement.trainNumber}</div><div className="font-semibold text-slate-800">{movement.trainName}</div><div className="text-[10px] text-slate-500">{movement.source} → {movement.destination}</div></td>
+                    <td className="px-3 py-3"><div className="font-mono font-bold text-blue-950">{movement.emoji} {movement.trainNumber}</div><div className="font-semibold text-slate-800">{movement.trainName}</div><div className="text-[10px] text-slate-500">{movement.source} → {movement.destination}</div></td>
                     <td className="px-3 py-3"><span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 font-semibold text-slate-700">{movement.type}</span><div className="mt-1 text-[10px] text-slate-500">Priority class {movement.priorityClass} • {movement.direction}</div></td>
                     <td className="px-3 py-3 font-mono font-semibold text-slate-800">{movement.scheduledSectionTime}</td>
                     <td className="px-3 py-3"><span className="font-mono font-bold text-red-700">+{movement.delayMinutes} min</span></td>

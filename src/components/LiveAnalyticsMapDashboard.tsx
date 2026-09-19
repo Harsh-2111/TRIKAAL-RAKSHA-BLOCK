@@ -32,7 +32,7 @@ import {
   StationNode,
   CorridorPolyline
 } from '../data/corridorCoordinates';
-import { getAffectedTrains, getCorridorCapacity, matchesZoneScope } from '../data/railwayOperations';
+import { extractZoneCode, getAffectedTrains, getCorridorCapacity, matchesZoneScope } from '../data/railwayOperations';
 import { calculateSectionDelays } from '../utils/delayCalculator';
 
 interface LiveAnalyticsMapDashboardProps {
@@ -171,7 +171,7 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
     });
 
     return allRequests.filter((req) => {
-      if (!matchesZoneScope(req, activeZone)) return false;
+      if (!matchesZoneScope(req, extractZoneCode(activeZone))) return false;
       if (selectedDeptFilter !== 'ALL' && req.department !== selectedDeptFilter) {
         return false;
       }

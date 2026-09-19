@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { DEPARTMENT_CONFIG } from '../data/mockData';
 import { BlockPriority, BlockRequest, BlockStatus, Department, UrgencyLevel, User, RailwayZoneCode } from '../types';
-import { matchesZoneScope } from '../data/railwayOperations';
+import { extractZoneCode, matchesZoneScope } from '../data/railwayOperations';
 import { DepartmentBlockRequestForm } from './DepartmentBlockRequestForm';
 import { exportRequestsToCsv, exportRequestsToOfficialPdf } from '../utils/exportUtils';
 import { calculateSectionDelays } from '../utils/delayCalculator';
@@ -81,7 +81,7 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
   const isolatedRequests = useMemo(() => {
     return allRequests.filter((req) => {
       if (req.department !== userDept) return false;
-      return matchesZoneScope(req, activeZone);
+      return matchesZoneScope(req, extractZoneCode(activeZone));
     });
   }, [allRequests, userDept, activeZone]);
 
