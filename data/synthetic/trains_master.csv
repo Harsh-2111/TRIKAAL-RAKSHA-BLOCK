@@ -249,3 +249,8 @@ train_no,train_name,type,priority_class,days_of_run,punctuality_pct,avg_passenge
 04157,Superfast Express 248,Superfast Express,2,"MON,TUE,WED,THU,FRI,SAT,SUN",86.4,2108
 04037,Express Passenger 249,Express Passenger,3,"MON,WED,THU,FRI,SAT,SUN",79.9,1363
 04627,Shatabdi Express 250,Shatabdi Express,1,"TUE,WED,THU,FRI,SAT",91.0,1250
+12127,Mumbai CSMT - Pune Intercity Express,Express,1,"MON,TUE,WED,THU,FRI,SAT,SUN",92.0,1100
+11007,Deccan Express,Express,1,"MON,TUE,WED,THU,FRI,SAT,SUN",91.0,1050
+12339,Coalfield Express,Express,1,"MON,TUE,WED,THU,FRI,SAT,SUN",90.0,1250
+12301,Howrah Rajdhani Express,Express,1,"MON,TUE,WED,THU,FRI,SAT,SUN",95.0,1500
+12639,Brindavan Express,Express,1,"MON,TUE,WED,THU,FRI,SAT,SUN",93.0,1300
