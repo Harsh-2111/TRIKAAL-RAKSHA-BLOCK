@@ -36,6 +36,7 @@ import { exportRequestsToCsv, exportRequestsToOfficialPdf } from '../utils/expor
 import { MLPredictionResult, predictRiskScore } from '../services/mlService';
 import { GeminiChatPanel } from './GeminiChatPanel';
 import { AffectedTrainsModal } from './AffectedTrainsModal';
+import { ImpactKpiDashboard } from './ImpactKpiDashboard';
 import { calculateSectionDelays } from '../utils/delayCalculator';
 
 interface AdminDashboardProps {
@@ -558,6 +559,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      <ImpactKpiDashboard
+        allRequests={allRequests}
+        totalTrackHours={0}
+        maintenanceDowntimeHours={0}
+        bundledHours={0}
+        totalMaintenanceHours={0}
+        detentionBeforeMins={stats.totalPendingPassengerDelay + stats.totalPendingFreightDelay}
+        detentionAfterMins={0}
+        monthlyTrackHoursSaved={0}
+      />
 
       {/* AI Co-Pilot Train Movement Impact Simulation & Recommendation Engine Banner */}
       <div className="p-4 bg-linear-to-r from-[#000075] via-blue-900 to-indigo-950 text-white rounded-lg shadow-md border border-blue-900 flex flex-col lg:flex-row lg:items-center justify-between gap-4">

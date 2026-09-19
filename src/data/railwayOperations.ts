@@ -47,6 +47,16 @@ export interface DefectRecord {
   calculatedRiskScore: number;
 }
 
+export interface DefectAutofill {
+  department: 'ENGINEERING' | 'ST' | 'TRD';
+  sectionId: string;
+  kmStart: string;
+  kmEnd: string;
+  location: string;
+  defectType: string;
+  urgencyLevel: 'Routine' | 'Priority' | 'Critical Emergency';
+}
+
 export interface AffectedTrain {
   id: string;
   name: string;
@@ -206,6 +216,31 @@ export const DEFECTS: DefectRecord[] = defectRows.map((row) => ({
   deferredCount: Number(row.deferred_count || 0),
   calculatedRiskScore: Number(row.calculated_risk_score || 0),
 }));
+
+const defectCategories = {
+  ENGINEERING: ['Geometry fault', 'Rail fracture', 'Sleeper defect'],
+  ST: ['Interlocking failure', 'Track circuit fault', 'Signal gantry issue'],
+  TRD: ['OHE cable sagging', 'Insulator flashover', 'Power supply sectioning gap'],
+} as const;
+
+export function getDefectAutofill(defect: DefectRecord, department: 'ENGINEERING' | 'ST' | 'TRD'): DefectAutofill {
+  const category = defectCategories[department][defect.severity % defectCategories[department].length];
+  const urgencyLevel = defect.severity >= 4 || defect.calculatedRiskScore >= 80
+    ? 'Critical Emergency'
+    : defect.severity >= 3 || defect.calculatedRiskScore >= 60
+    ? 'Priority'
+    : 'Routine';
+
+  return {
+    department,
+    sectionId: defect.section,
+    kmStart: 'KM 00/00',
+    kmEnd: 'KM 00/00',
+    location: `${defect.section} corridor - ${category}`,
+    defectType: category,
+    urgencyLevel,
+  };
+}
 
 export function getSectionTimetable(section?: string): SectionTimetableRecord[] {
   if (!section) return SECTION_TIMETABLE;

@@ -58,6 +58,10 @@ export interface BlockRequest {
   zoneCode?: RailwayZoneCode;
   division: string;
   section: string;
+  sectionId?: string;
+  location?: string;
+  defectId?: string;
+  defectType?: string;
   stationFrom: string;
   stationTo: string;
   lineType: string;

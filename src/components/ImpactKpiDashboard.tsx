@@ -1,4 +1,6 @@
 ﻿import React, { useMemo } from 'react';
+import { BlockRequest } from '../types';
+import { getCorridorCapacity } from '../data/railwayOperations';
 import {
   Activity,
   Gauge,
@@ -33,6 +35,7 @@ export interface ImpactKpiDashboardProps {
   monthlyTrackHoursSaved: number;
   savingsTrend?: SavingsPoint[];
   optimizedMaintenanceDowntimeHours?: number;
+  allRequests?: BlockRequest[];
 }
 
 type MetricMode = 'percentage' | 'hours' | 'reduction';
@@ -74,17 +77,46 @@ export const ImpactKpiDashboard: React.FC<ImpactKpiDashboardProps> = ({
   monthlyTrackHoursSaved,
   savingsTrend,
   optimizedMaintenanceDowntimeHours,
+  allRequests = [],
 }) => {
+  const sharedOperations = useMemo(() => {
+    const activeRequests = allRequests.filter((request) => request.status !== 'REJECTED' && request.status !== 'COMPLETED');
+    const maintenanceHours = activeRequests.reduce((total, request) => total + (request.approvedDurationMinutes || request.durationMinutes || 0) / 60, 0);
+    const bundledHours = activeRequests
+      .filter((request) => request.aiOptimized || request.aiBundleId || request.shadowBlockEligible)
+      .reduce((total, request) => total + (request.approvedDurationMinutes || request.durationMinutes || 0) / 60, 0);
+    const capacityHours = activeRequests.reduce((total, request) => total + Math.max(1, getCorridorCapacity(request.section)[0]?.maxHourlyCapacity || 1) * 24, 0);
+    return {
+      maintenanceHours,
+      bundledHours,
+      capacityHours,
+      hasSharedRequests: allRequests.length > 0,
+    };
+  }, [allRequests]);
+
+  const effectiveMaintenanceDowntimeHours = sharedOperations.hasSharedRequests
+    ? sharedOperations.maintenanceHours
+    : maintenanceDowntimeHours;
+  const effectiveTotalMaintenanceHours = sharedOperations.hasSharedRequests
+    ? sharedOperations.maintenanceHours
+    : totalMaintenanceHours;
+  const effectiveBundledHours = sharedOperations.hasSharedRequests
+    ? sharedOperations.bundledHours
+    : bundledHours;
+  const effectiveTrackHours = sharedOperations.hasSharedRequests
+    ? Math.max(totalTrackHours, sharedOperations.capacityHours)
+    : totalTrackHours;
+
   const metrics = useMemo<ComparisonMetric[]>(() => {
-    const manualAvailability = totalTrackHours > 0
-      ? clampPercent(((totalTrackHours - maintenanceDowntimeHours) / totalTrackHours) * 100)
+    const manualAvailability = effectiveTrackHours > 0
+      ? clampPercent(((effectiveTrackHours - effectiveMaintenanceDowntimeHours) / effectiveTrackHours) * 100)
       : 0;
-    const optimizedDowntime = optimizedMaintenanceDowntimeHours ?? Math.max(0, maintenanceDowntimeHours - monthlyTrackHoursSaved);
-    const aiAvailability = totalTrackHours > 0
-      ? clampPercent(((totalTrackHours - optimizedDowntime) / totalTrackHours) * 100)
+    const optimizedDowntime = optimizedMaintenanceDowntimeHours ?? Math.max(0, effectiveMaintenanceDowntimeHours - monthlyTrackHoursSaved);
+    const aiAvailability = effectiveTrackHours > 0
+      ? clampPercent(((effectiveTrackHours - optimizedDowntime) / effectiveTrackHours) * 100)
       : 0;
-    const shadowUtilization = totalMaintenanceHours > 0
-      ? clampPercent((bundledHours / totalMaintenanceHours) * 100)
+    const shadowUtilization = effectiveTotalMaintenanceHours > 0
+      ? clampPercent((effectiveBundledHours / effectiveTotalMaintenanceHours) * 100)
       : 0;
     const delayReduction = detentionBeforeMins > 0
       ? clampPercent(((detentionBeforeMins - detentionAfterMins) / detentionBeforeMins) * 100)
@@ -96,7 +128,7 @@ export const ImpactKpiDashboard: React.FC<ImpactKpiDashboardProps> = ({
       { key: 'delay', label: 'Cascading Delay Reduction', icon: TrendingDown, before: detentionBeforeMins, after: detentionAfterMins, mode: 'reduction', note: `${detentionBeforeMins.toFixed(0)} to ${detentionAfterMins.toFixed(0)} detention minutes`, accent: '#34d399' },
       { key: 'saved', label: 'Monthly Track Hours Saved', icon: Landmark, before: 0, after: monthlyTrackHoursSaved, mode: 'hours', note: 'Cumulative shadow-block savings', accent: '#fbbf24' },
     ];
-  }, [bundledHours, detentionAfterMins, detentionBeforeMins, maintenanceDowntimeHours, monthlyTrackHoursSaved, optimizedMaintenanceDowntimeHours, totalMaintenanceHours, totalTrackHours]);
+  }, [detentionAfterMins, detentionBeforeMins, effectiveBundledHours, effectiveMaintenanceDowntimeHours, effectiveTotalMaintenanceHours, effectiveTrackHours, monthlyTrackHoursSaved, optimizedMaintenanceDowntimeHours]);
 
   const trend = savingsTrend?.length ? savingsTrend : defaultTrend(monthlyTrackHoursSaved);
 

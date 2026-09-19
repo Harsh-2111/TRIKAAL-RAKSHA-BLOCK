@@ -25,6 +25,7 @@ import {
 import { BlockRequest, BundledBlockWindow, Department, SolverOptimizationResult, User } from '../types';
 import { runCpSatSolver } from '../utils/cpSatSolver';
 import { DEPARTMENT_CONFIG } from '../data/mockData';
+import { getSectionTimetable } from '../data/railwayOperations';
 
 interface AiOptimizerModalProps {
   isOpen: boolean;
@@ -72,8 +73,21 @@ export const AiOptimizerModal: React.FC<AiOptimizerModalProps> = ({
 
   // Compute solver results dynamically
   const pendingRequests = useMemo(() => {
-    return allRequests.filter((request) => request.status.toUpperCase() === 'PENDING');
+    return allRequests.filter((request) => (
+      request.status.toUpperCase() === 'PENDING' &&
+      ['ENGINEERING', 'ST', 'TRD'].includes(request.department)
+    ));
   }, [allRequests]);
+
+  const pendingDepartmentCounts = useMemo(() => pendingRequests.reduce<Record<string, number>>((counts, request) => {
+    counts[request.department] = (counts[request.department] || 0) + 1;
+    return counts;
+  }, {}), [pendingRequests]);
+
+  const timetableMatchedPendingCount = useMemo(
+    () => pendingRequests.filter((request) => getSectionTimetable(request.section).length > 0).length,
+    [pendingRequests]
+  );
 
   const [solverResult, setSolverResult] = useState<SolverOptimizationResult>(EMPTY_SOLVER_RESULT);
   const hasOptimizationWork =
@@ -273,7 +287,7 @@ export const AiOptimizerModal: React.FC<AiOptimizerModalProps> = ({
                   Executing CP-SAT Mathematical Optimization
                 </h3>
                 <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                  Evaluating spatio-temporal constraint bounds across Engineering (P-Way), S&T, and TRD requisitions.
+                  Evaluating {pendingRequests.length} pending requisitions across Engineering ({pendingDepartmentCounts.ENGINEERING || 0}), S&amp;T ({pendingDepartmentCounts.ST || 0}), and TRD ({pendingDepartmentCounts.TRD || 0}); {timetableMatchedPendingCount} match the live section timetable.
                 </p>
               </div>
 

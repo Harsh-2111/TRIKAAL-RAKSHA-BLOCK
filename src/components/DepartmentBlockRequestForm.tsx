@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { BlockRequest, Department, UrgencyLevel, User } from '../types';
 import { DEPARTMENT_CONFIG } from '../data/mockData';
-import { DEFECTS, DefectRecord } from '../data/railwayOperations';
+import { DEFECTS, getDefectAutofill } from '../data/railwayOperations';
 
 interface DepartmentBlockRequestFormProps {
   currentUser: User;
@@ -76,6 +76,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   const [machineryCustomText, setMachineryCustomText] = useState<string>('');
   const [justification, setJustification] = useState<string>('');
   const [selectedDefectId, setSelectedDefectId] = useState<string>('');
+  const [selectedDefectLocation, setSelectedDefectLocation] = useState<string>('');
 
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -100,23 +101,21 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   const durationInfo = calculateDuration();
 
   const departmentDefects = DEFECTS.filter((defect) => {
-    const normalizedDepartment = defect.department.toUpperCase().replace(/\s*&\s*T/, 'ST');
-    return normalizedDepartment === userDept || (userDept === 'ST' && normalizedDepartment === 'ST');
+    const normalizedDepartment = defect.department.toUpperCase().replace(/ENGINEERING/, 'ENGINEERING').replace(/\s*&\s*T|S&T/, 'ST');
+    return normalizedDepartment === userDept;
   });
 
   const handleDefectSelection = (defectId: string) => {
     setSelectedDefectId(defectId);
     const defect = departmentDefects.find((item) => item.defectId === defectId);
     if (!defect) return;
-    const urgency: UrgencyLevel = defect.severity >= 4 || defect.calculatedRiskScore >= 80
-      ? 'Critical Emergency'
-      : defect.severity >= 3 || defect.calculatedRiskScore >= 60
-      ? 'Priority'
-      : 'Routine';
+    const autofill = getDefectAutofill(defect, userDept);
     setSelectedSectionPreset('Custom Section (Type Below)');
-    setCustomSectionText(`${defect.section} Section, KM 00/00 - 00/00`);
-    setUrgencyLevel(urgency);
-    setJustification(`Defect ${defect.defectId}: ${defect.sourceSystem} report on ${defect.section}; severity ${defect.severity}, risk score ${defect.calculatedRiskScore.toFixed(1)}, overdue ${defect.daysOverdue} days.`);
+    setCustomSectionText(`${autofill.sectionId} Section, ${autofill.kmStart} - ${autofill.kmEnd}`);
+    setUrgencyLevel(autofill.urgencyLevel);
+    setSelectedDefectLocation(autofill.location);
+    setBlockType(userDept === 'ENGINEERING' ? 'Track Maintenance' : userDept === 'ST' ? 'Signal Interlocking' : 'OHE Maintenance');
+    setJustification(`${autofill.defectType} at ${autofill.location}. Defect ${defect.defectId} from ${defect.sourceSystem}; severity ${defect.severity}, risk score ${defect.calculatedRiskScore.toFixed(1)}, overdue ${defect.daysOverdue} days.`);
   };
 
   const handleToggleMachineryChip = (mach: string) => {
@@ -193,6 +192,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
     // Generate Tracking Request ID (e.g., REQ-ENG-2026-089)
     const randomSerial = Math.floor(100 + Math.random() * 900);
     const trackingId = `REQ-${deptConfig.code}-${new Date().getFullYear()}-${randomSerial}`;
+    const selectedDefect = departmentDefects.find((item) => item.defectId === selectedDefectId);
 
     // Extract Station and KM hints from section string if possible
     let stationFrom = 'Station A';
@@ -232,6 +232,10 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
       applicantDesignation: currentUser.designation,
       division: currentUser.division,
       section: resolvedSection,
+      sectionId: selectedDefect?.section,
+      location: selectedDefectLocation || undefined,
+      defectId: selectedDefectId || undefined,
+      defectType: selectedDefect ? getDefectAutofill(selectedDefect, userDept).defectType : undefined,
       stationFrom,
       stationTo,
       lineType: 'Main Line',
@@ -275,6 +279,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
     setMachineryCustomText('');
     setJustification('');
     setSelectedDefectId('');
+    setSelectedDefectLocation('');
     setErrors({});
     setShowErrorBanner(false);
   };
@@ -353,7 +358,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
               </option>
             ))}
           </select>
-          {selectedDefectId && <p className="mt-1 text-[10px] text-amber-900">Section, location, and urgency were populated from the selected synthetic defect record.</p>}
+          {selectedDefectId && <p className="mt-1 text-[10px] text-amber-900">Section ID, KM range, location, defect type, and urgency were populated for {userDept}.</p>}
         </div>
 
         {/* SECTION 1: Section & Block Type */}
