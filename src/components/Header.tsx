@@ -4,7 +4,6 @@ import {
   LogOut,
   Train,
   Clock,
-  Building2,
   UserCircle2,
   Layers,
   Compass,
@@ -129,15 +128,6 @@ export const Header: React.FC<HeaderProps> = ({
               <Clock className="w-3.5 h-3.5 text-amber-400" />
               <span className="font-mono text-amber-300 font-bold">{istTime}</span>
               <span className="text-slate-300 text-[10px] hidden sm:inline">({istDate})</span>
-            </div>
-            <span className="text-slate-500 hidden lg:inline">|</span>
-            <div className="hidden lg:flex items-center space-x-1 text-slate-200">
-              <Building2 className="w-3.5 h-3.5 text-amber-400" />
-              <span className="font-medium">
-                {activeZone === 'ALL'
-                  ? 'Pan-India Unified FOIS • All 5 Active Zonal Networks'
-                  : `${ZONAL_RAILWAYS[activeZone]?.name} • ${ZONAL_RAILWAYS[activeZone]?.division}`}
-              </span>
             </div>
           </div>
         </div>

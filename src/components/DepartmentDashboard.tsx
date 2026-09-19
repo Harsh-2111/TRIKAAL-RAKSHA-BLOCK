@@ -219,7 +219,6 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
             >
               {deptConfig.code} DEPARTMENT CONSOLE
             </span>
-            <span className="text-xs text-slate-400 font-mono">Division: {currentUser.division}</span>
           </div>
           <h1 className="text-xl font-bold text-slate-900 mt-1 flex items-center space-x-2">
             <span>{deptConfig.name}</span>
