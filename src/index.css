@@ -112,6 +112,66 @@ textarea {
 }
 
 @media (max-width: 640px) {
+  body {
+    min-width: 0;
+  }
+
+  main {
+    min-width: 0;
+  }
+
+  #raksha-header .mobile-header-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  #raksha-header .mobile-header-actions > :first-child {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  #raksha-header .mobile-header-actions > :first-child select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #raksha-header .mobile-header-actions > :nth-child(2) {
+    grid-column: 1;
+  }
+
+  #raksha-header .mobile-header-actions > :nth-child(3),
+  #raksha-header .mobile-header-actions > :nth-child(4) {
+    justify-self: end;
+  }
+
+  #top-nav-tabs > div {
+    justify-content: flex-start;
+  }
+
+  #top-nav-tabs button {
+    padding-left: 0.625rem;
+    padding-right: 0.625rem;
+    font-size: 0.6875rem;
+  }
+
+  #department-login-cards-grid,
+  #railway-helpline-directory {
+    min-width: 0;
+  }
+
+  .leaflet-control-zoom {
+    margin-right: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .fixed > [class*="max-w-"] {
+    width: min(100%, calc(100vw - 1rem));
+    max-width: calc(100vw - 1rem);
+  }
+
   .mobile-header-actions > :first-child {
     min-width: 0;
     flex: 1 1 auto;
@@ -125,6 +185,39 @@ textarea {
   .overflow-x-auto {
     max-width: 100%;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  table {
+    max-width: none;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    min-height: 2.25rem;
+  }
+
+  .leaflet-popup-content {
+    max-width: calc(100vw - 4rem);
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1100px) {
+  #raksha-header .mobile-header-actions {
+    min-width: 0;
+  }
+
+  #raksha-header .mobile-header-actions > :first-child {
+    min-width: 180px;
+    max-width: 42vw;
+  }
+
+  #top-nav-tabs button {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 }
 
