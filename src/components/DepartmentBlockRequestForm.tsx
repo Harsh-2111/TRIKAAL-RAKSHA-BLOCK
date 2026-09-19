@@ -101,7 +101,9 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   const durationInfo = calculateDuration();
 
   const departmentDefects = DEFECTS.filter((defect) => {
-    const normalizedDepartment = defect.department.toUpperCase().replace(/ENGINEERING/, 'ENGINEERING').replace(/\s*&\s*T|S&T/, 'ST');
+    const normalizedDepartment = defect.department.toUpperCase().replace(/[\s&]/g, '') === 'ST'
+      ? 'ST'
+      : defect.department.toUpperCase().replace(/\s+/g, '_');
     return normalizedDepartment === userDept;
   });
 
