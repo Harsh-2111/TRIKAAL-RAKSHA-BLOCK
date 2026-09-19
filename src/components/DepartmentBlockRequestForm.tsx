@@ -14,12 +14,13 @@ import {
   Send,
   RotateCcw
 } from 'lucide-react';
-import { BlockRequest, Department, UrgencyLevel, User } from '../types';
+import { BlockRequest, Department, RailwayZoneCode, UrgencyLevel, User } from '../types';
 import { DEPARTMENT_CONFIG } from '../data/mockData';
-import { DEFECTS, getDefectAutofill } from '../data/railwayOperations';
+import { DEFECTS, getDefectAutofill, resolveRequestZoneCode } from '../data/railwayOperations';
 
 interface DepartmentBlockRequestFormProps {
   currentUser: User;
+  activeZone?: RailwayZoneCode;
   onSubmitSuccess: (newReq: BlockRequest) => void;
   onCancel: () => void;
 }
@@ -48,6 +49,7 @@ const COMMON_MACHINERY = [
 
 export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProps> = ({
   currentUser,
+  activeZone = currentUser.zoneCode || 'ALL',
   onSubmitSuccess,
   onCancel,
 }) => {
@@ -227,11 +229,20 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
       'Critical Emergency': 'SAFETY_CRITICAL' as const,
     };
 
+    const effectiveZoneCode = activeZone !== 'ALL' ? activeZone : currentUser.zoneCode || resolveRequestZoneCode({
+      zone: currentUser.zone,
+      division: currentUser.division,
+      section: resolvedSection,
+    });
+    const effectiveZoneName = currentUser.zone || (effectiveZoneCode !== 'ALL' ? `${effectiveZoneCode} Railway` : 'Indian Railways');
+
     const newRequest: BlockRequest = {
       id: trackingId,
       department: userDept, // Automatically append current logged-in user's department name
       applicantName: currentUser.name,
       applicantDesignation: currentUser.designation,
+      zone: effectiveZoneName,
+      zoneCode: effectiveZoneCode,
       division: currentUser.division,
       section: resolvedSection,
       sectionId: selectedDefect?.section,

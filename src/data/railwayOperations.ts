@@ -2,7 +2,7 @@ import corridorCapacityCsv from '../../data/synthetic/corridor_capacity.csv?raw'
 import sectionTimetableCsv from '../../data/synthetic/section_timetable.csv?raw';
 import trainsMasterCsv from '../../data/synthetic/trains_master.csv?raw';
 import defectsCsv from '../../data/synthetic/defects.csv?raw';
-import { BlockRequest } from '../types';
+import { BlockRequest, RailwayZoneCode } from '../types';
 
 export interface TrainMasterRecord {
   trainNumber: string;
@@ -131,6 +131,42 @@ export const normalizeRailwaySection = (value: string): string => {
     VAPISURATSECTION: 'VAPIST',
   };
   return aliases[normalized] || normalized;
+};
+
+export const resolveRequestZoneCode = (
+  request?: Pick<BlockRequest, 'zoneCode' | 'zone' | 'division' | 'section'> | null,
+): RailwayZoneCode => {
+  const zoneCode = request?.zoneCode?.toUpperCase();
+  if (zoneCode === 'NR' || zoneCode === 'WR' || zoneCode === 'CR' || zoneCode === 'ER' || zoneCode === 'SR') {
+    return zoneCode;
+  }
+
+  const zoneText = request?.zone || request?.division || request?.section || '';
+  const normalized = zoneText.toUpperCase();
+
+  if (normalized.includes('WESTERN') || normalized.includes('WR') || normalized.includes('MMCT')) return 'WR';
+  if (normalized.includes('CENTRAL') || normalized.includes('CR') || normalized.includes('PA')) return 'CR';
+  if (normalized.includes('EASTERN') || normalized.includes('ER') || normalized.includes('SDAH')) return 'ER';
+  if (normalized.includes('SOUTHERN') || normalized.includes('SR') || normalized.includes('MAS')) return 'SR';
+  if (normalized.includes('NORTHERN') || normalized.includes('NR') || normalized.includes('DLI') || normalized.includes('GZB') || normalized.includes('NDLS')) return 'NR';
+
+  return 'ALL';
+};
+
+export const matchesZoneScope = (
+  request: Pick<BlockRequest, 'zoneCode' | 'zone' | 'division' | 'section'>,
+  activeZone: RailwayZoneCode = 'ALL',
+): boolean => {
+  if (!activeZone || activeZone === 'ALL') return true;
+  return resolveRequestZoneCode(request) === activeZone;
+};
+
+export const filterRequestsByZone = <T extends Pick<BlockRequest, 'zoneCode' | 'zone' | 'division' | 'section'>>(
+  requests: T[],
+  activeZone: RailwayZoneCode = 'ALL',
+): T[] => {
+  if (!activeZone || activeZone === 'ALL') return requests;
+  return requests.filter((request) => matchesZoneScope(request, activeZone));
 };
 
 const splitSection = (section: string): [string, string] => {

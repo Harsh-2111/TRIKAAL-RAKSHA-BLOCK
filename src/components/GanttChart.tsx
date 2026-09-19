@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Filter, Layers3, ShieldAlert, X } from 'lucide-react';
 import { BlockRequest, BlockStatus, Department, RailwayZoneCode, User } from '../types';
-import { getCorridorCapacity, getSectionTimetable, TRAIN_MASTER } from '../data/railwayOperations';
+import { getCorridorCapacity, getSectionTimetable, matchesZoneScope, TRAIN_MASTER } from '../data/railwayOperations';
 
 interface GanttChartProps {
   currentUser: User;
@@ -77,7 +77,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ currentUser, allRequests
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [editedWindows, setEditedWindows] = useState<Record<string, EditedWindow>>({});
 
-  const scopedRequests = useMemo(() => allRequests.filter((request) => (currentUser.role === 'SECTION_CONTROLLER' || request.department === currentUser.department) && (activeZone === 'ALL' || !request.zoneCode || request.zoneCode === activeZone)), [allRequests, currentUser, activeZone]);
+  const scopedRequests = useMemo(() => allRequests.filter((request) => (currentUser.role === 'SECTION_CONTROLLER' || request.department === currentUser.department) && matchesZoneScope(request, activeZone)), [allRequests, currentUser, activeZone]);
   const dates = useMemo(() => Array.from(new Set(scopedRequests.map((request) => request.requestedDate).filter(Boolean))).sort(), [scopedRequests]);
   const effectiveDate = selectedDate || dates[0] || dateToKey(new Date());
   const sections = useMemo(() => Array.from(new Set(scopedRequests.map((request) => request.section).filter(Boolean))).sort(), [scopedRequests]);

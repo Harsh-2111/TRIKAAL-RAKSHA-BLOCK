@@ -38,6 +38,7 @@ import { GeminiChatPanel } from './GeminiChatPanel';
 import { AffectedTrainsModal } from './AffectedTrainsModal';
 import { ImpactKpiDashboard } from './ImpactKpiDashboard';
 import { calculateSectionDelays } from '../utils/delayCalculator';
+import { matchesZoneScope } from '../data/railwayOperations';
 
 interface AdminDashboardProps {
   currentUser: User;
@@ -243,20 +244,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const filteredRequests = useMemo(() => {
     return deduplicateRequests(allRequests).filter((req) => {
       // 0. Zone filter
-      if (activeZone && activeZone !== 'ALL') {
-        const reqZone =
-          req.zoneCode ||
-          (req.zone?.includes('WR')
-            ? 'WR'
-            : req.zone?.includes('CR')
-            ? 'CR'
-            : req.zone?.includes('ER')
-            ? 'ER'
-            : req.zone?.includes('SR')
-            ? 'SR'
-            : 'NR');
-        if (reqZone !== activeZone) return false;
-      }
+      if (!matchesZoneScope(req, activeZone)) return false;
 
       // 1. Department filter
       const matchesDept = selectedDeptTab === 'ALL' || normalizeDepartment(req.department) === selectedDeptTab;
@@ -298,20 +286,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const zoneScopedRequests = useMemo(() => {
     if (!activeZone || activeZone === 'ALL') return allRequests;
-    return allRequests.filter((req) => {
-      const reqZone =
-        req.zoneCode ||
-        (req.zone?.includes('WR')
-          ? 'WR'
-          : req.zone?.includes('CR')
-          ? 'CR'
-          : req.zone?.includes('ER')
-          ? 'ER'
-          : req.zone?.includes('SR')
-          ? 'SR'
-          : 'NR');
-      return reqZone === activeZone;
-    });
+    return allRequests.filter((req) => matchesZoneScope(req, activeZone));
   }, [allRequests, activeZone]);
 
   // REQUIREMENT 1: Executive Summary Cards (Top Row)

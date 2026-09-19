@@ -890,6 +890,7 @@ export default function App() {
       {currentUser && currentUser.role !== 'SECTION_CONTROLLER' && (
         <NewRequestModal
           currentUser={currentUser}
+          activeZone={activeZone}
           isOpen={isNewRequestOpen}
           onClose={() => setIsNewRequestOpen(false)}
           onSubmitRequest={handleCreateRequest}

@@ -10,10 +10,12 @@ import {
   TrainTrack
 } from 'lucide-react';
 import { DEPARTMENT_CONFIG, RAILWAY_SECTIONS } from '../data/mockData';
-import { BlockPriority, BlockRequest, Department, User } from '../types';
+import { resolveRequestZoneCode } from '../data/railwayOperations';
+import { BlockPriority, BlockRequest, Department, RailwayZoneCode, User } from '../types';
 
 interface NewRequestModalProps {
   currentUser: User;
+  activeZone?: RailwayZoneCode;
   isOpen: boolean;
   onClose: () => void;
   onSubmitRequest: (newReq: BlockRequest) => void;
@@ -21,6 +23,7 @@ interface NewRequestModalProps {
 
 export const NewRequestModal: React.FC<NewRequestModalProps> = ({
   currentUser,
+  activeZone = currentUser.zoneCode || 'ALL',
   isOpen,
   onClose,
   onSubmitRequest,
@@ -111,12 +114,20 @@ export const NewRequestModal: React.FC<NewRequestModalProps> = ({
 
     const randomSerial = Math.floor(100 + Math.random() * 900);
     const blockId = `RB-${deptConfig.code}-${new Date().getFullYear()}-${randomSerial}`;
+    const effectiveZoneCode = activeZone !== 'ALL' ? activeZone : currentUser.zoneCode || resolveRequestZoneCode({
+      zone: currentUser.zone,
+      division: currentUser.division,
+      section: currentSection.name,
+    });
+    const effectiveZoneName = currentUser.zone || (effectiveZoneCode !== 'ALL' ? `${effectiveZoneCode} Railway` : 'Indian Railways');
 
     const newRequest: BlockRequest = {
       id: blockId,
       department: userDept, // STRICT ENFORCEMENT: department is strictly locked to logged-in user
       applicantName: currentUser.name,
       applicantDesignation: currentUser.designation,
+      zone: effectiveZoneName,
+      zoneCode: effectiveZoneCode,
       division: currentUser.division,
       section: currentSection.name,
       stationFrom: stationFrom.trim(),
