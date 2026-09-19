@@ -1,4 +1,5 @@
 import { BlockRequest, Department, SolverOptimizationResult, UrgencyLevel } from '../types';
+import { getSectionTimetable, TRAIN_MASTER } from '../data/railwayOperations';
 
 // Helper: Convert time HH:mm to minutes from midnight
 export const timeToMinutes = (timeStr: string): number => {
@@ -117,6 +118,20 @@ export const runCpSatSolver = async (requests: BlockRequest[]): Promise<SolverOp
     start_time: request.requestedStartTime,
     duration_mins: request.durationMinutes,
   }));
+  const premiumTrainWindows = activePending.flatMap((request) =>
+    getSectionTimetable(request.section)
+      .filter((entry) => {
+        const train = TRAIN_MASTER.find((candidate) => candidate.trainNumber === entry.trainNumber);
+        return train?.priorityClass === '1' || /rajdhani|shatabdi|vande bharat/i.test(train?.trainName || '');
+      })
+      .map((entry) => ({
+        section: entry.section,
+        start_time_hhmm: entry.arrivalTime,
+        end_time_hhmm: entry.departureTime,
+        train_no: entry.trainNumber,
+        train_name: TRAIN_MASTER.find((candidate) => candidate.trainNumber === entry.trainNumber)?.trainName,
+      }))
+  );
 
   const configuredSolverUrl = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_SOLVER_API_URL;
   const isLocalSolverUrl = Boolean(configuredSolverUrl && /localhost|127\.0\.0\.1/.test(configuredSolverUrl));
@@ -127,7 +142,7 @@ export const runCpSatSolver = async (requests: BlockRequest[]): Promise<SolverOp
   const response = await fetch(solverUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ requests: payload }),
+    body: JSON.stringify({ requests: payload, premium_train_windows: premiumTrainWindows }),
   });
 
   if (!response.ok) {

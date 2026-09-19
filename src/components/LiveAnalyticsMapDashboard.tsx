@@ -32,7 +32,7 @@ import {
   StationNode,
   CorridorPolyline
 } from '../data/corridorCoordinates';
-import { getAffectedTrains } from '../data/trainData';
+import { getAffectedTrains, getCorridorCapacity } from '../data/railwayOperations';
 import { calculateSectionDelays } from '../utils/delayCalculator';
 
 interface LiveAnalyticsMapDashboardProps {
@@ -264,9 +264,13 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
 
     const totalMaintenanceHours = engHours + stHours + trdHours;
     // Division Capacity model: 16 active lines across corridors * 24 hrs = 384 available track hours
-    const totalDivisionTrackCapacityHours = activeZone === 'ALL' ? 1920 : 384;
+    const visibleSections = new Set<string>(filteredRequisitions.map((request) => request.section));
+    const totalDivisionTrackCapacityHours = Array.from(visibleSections).reduce<number>((total, section) => {
+      const capacity = getCorridorCapacity(section)[0];
+      return total + Math.max(24, capacity?.maxHourlyCapacity || 0) * 24;
+    }, 0) || 24;
     const utilizationRate = Math.min(100, Math.round((totalMaintenanceHours / totalDivisionTrackCapacityHours) * 100 * 10) / 10);
-    const safetyLimit = activeZone === 'ALL' ? 32 : 8; // Max simultaneous corridor blocks
+    const safetyLimit = Math.max(1, Math.round(totalDivisionTrackCapacityHours / 60));
     const sectionImpact = new Map<string, number>();
     const bundleDepartments = new Map<string, Set<Department>>();
     filteredRequisitions.forEach((req) => {

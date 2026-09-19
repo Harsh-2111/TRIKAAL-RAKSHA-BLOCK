@@ -1,6 +1,6 @@
 import React from 'react';
 import { Train, Clock, AlertCircle, ArrowRight, Gauge, Layers } from 'lucide-react';
-import { AffectedTrain, getAffectedTrains } from '../data/trainData';
+import { AffectedTrain, getAffectedTrains } from '../data/railwayOperations';
 
 export interface TrainImpactCalculation {
   durationHours: number;

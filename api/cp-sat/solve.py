@@ -51,6 +51,6 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length) or b"{}")
             requests = [normalize_request(item) for item in payload.get("requests", [])]
-            self._send_json(200, build_result(requests))
+            self._send_json(200, build_result(requests, payload.get("premium_train_windows", [])))
         except Exception as error:
             self._send_json(500, {"error": str(error)})

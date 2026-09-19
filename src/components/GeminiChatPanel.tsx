@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { LoaderCircle, MessageCircle, Send, Sparkles, X } from 'lucide-react';
 import { BlockRequest, User } from '../types';
 import { chatWithAssistant } from '../services/geminiService';
-import { SECTION_TIMETABLE, TRAIN_CATALOG } from '../data/trainData';
+import { SECTION_TIMETABLE, TRAIN_MASTER } from '../data/railwayOperations';
 
 interface GeminiChatPanelProps {
   currentUser: User;
@@ -54,7 +54,7 @@ export const GeminiChatPanel: React.FC<GeminiChatPanelProps> = ({ currentUser, a
         status: request.status,
       }));
       const trainMasterSummary = {
-        trains: TRAIN_CATALOG,
+        trains: TRAIN_MASTER,
         sectionTimetable: SECTION_TIMETABLE,
       };
       const reply = await chatWithAssistant(text, nextMessages, {

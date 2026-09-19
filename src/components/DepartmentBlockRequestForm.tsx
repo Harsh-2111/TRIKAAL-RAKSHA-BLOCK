@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { BlockRequest, Department, UrgencyLevel, User } from '../types';
 import { DEPARTMENT_CONFIG } from '../data/mockData';
+import { DEFECTS, DefectRecord } from '../data/railwayOperations';
 
 interface DepartmentBlockRequestFormProps {
   currentUser: User;
@@ -74,6 +75,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   const [selectedMachineryChips, setSelectedMachineryChips] = useState<string[]>([]);
   const [machineryCustomText, setMachineryCustomText] = useState<string>('');
   const [justification, setJustification] = useState<string>('');
+  const [selectedDefectId, setSelectedDefectId] = useState<string>('');
 
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -96,6 +98,26 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
   };
 
   const durationInfo = calculateDuration();
+
+  const departmentDefects = DEFECTS.filter((defect) => {
+    const normalizedDepartment = defect.department.toUpperCase().replace(/\s*&\s*T/, 'ST');
+    return normalizedDepartment === userDept || (userDept === 'ST' && normalizedDepartment === 'ST');
+  });
+
+  const handleDefectSelection = (defectId: string) => {
+    setSelectedDefectId(defectId);
+    const defect = departmentDefects.find((item) => item.defectId === defectId);
+    if (!defect) return;
+    const urgency: UrgencyLevel = defect.severity >= 4 || defect.calculatedRiskScore >= 80
+      ? 'Critical Emergency'
+      : defect.severity >= 3 || defect.calculatedRiskScore >= 60
+      ? 'Priority'
+      : 'Routine';
+    setSelectedSectionPreset('Custom Section (Type Below)');
+    setCustomSectionText(`${defect.section} Section, KM 00/00 - 00/00`);
+    setUrgencyLevel(urgency);
+    setJustification(`Defect ${defect.defectId}: ${defect.sourceSystem} report on ${defect.section}; severity ${defect.severity}, risk score ${defect.calculatedRiskScore.toFixed(1)}, overdue ${defect.daysOverdue} days.`);
+  };
 
   const handleToggleMachineryChip = (mach: string) => {
     if (selectedMachineryChips.includes(mach)) {
@@ -252,6 +274,7 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
     setSelectedMachineryChips([]);
     setMachineryCustomText('');
     setJustification('');
+    setSelectedDefectId('');
     setErrors({});
     setShowErrorBanner(false);
   };
@@ -313,6 +336,24 @@ export const DepartmentBlockRequestForm: React.FC<DepartmentBlockRequestFormProp
           <span className="text-[11px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
             Division: {currentUser.division} (NR)
           </span>
+        </div>
+
+        {/* SECTION 1: Section & Block Type */}
+        <div className="rounded-md border border-amber-200 bg-amber-50/70 p-3">
+          <label className="block font-bold text-amber-950 mb-1.5">Reported Safety Defect (optional)</label>
+          <select
+            value={selectedDefectId}
+            onChange={(event) => handleDefectSelection(event.target.value)}
+            className="w-full rounded border border-amber-300 bg-white px-3 py-2 text-xs"
+          >
+            <option value="">Create from a new maintenance demand</option>
+            {departmentDefects.map((defect) => (
+              <option key={defect.defectId} value={defect.defectId}>
+                {defect.defectId} | {defect.section} | Risk {defect.calculatedRiskScore.toFixed(1)}
+              </option>
+            ))}
+          </select>
+          {selectedDefectId && <p className="mt-1 text-[10px] text-amber-900">Section, location, and urgency were populated from the selected synthetic defect record.</p>}
         </div>
 
         {/* SECTION 1: Section & Block Type */}

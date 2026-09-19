@@ -1,6 +1,7 @@
 import corridorCapacityCsv from '../../data/synthetic/corridor_capacity.csv?raw';
 import sectionTimetableCsv from '../../data/synthetic/section_timetable.csv?raw';
 import trainsMasterCsv from '../../data/synthetic/trains_master.csv?raw';
+import defectsCsv from '../../data/synthetic/defects.csv?raw';
 import { BlockRequest } from '../types';
 
 export interface TrainMasterRecord {
@@ -15,7 +16,7 @@ export interface TrainMasterRecord {
   averagePassengers: number;
 }
 
-interface TimetableRecord {
+export interface SectionTimetableRecord {
   trainNumber: string;
   section: string;
   arrivalTime: string;
@@ -24,13 +25,35 @@ interface TimetableRecord {
   days: string;
 }
 
-interface CapacityRecord {
+export interface CorridorCapacityRecord {
   section: string;
   totalTracks: number;
   lineType: string;
   dailyTrainCount: number;
   criticalityTier: string;
   maxHourlyCapacity: number;
+}
+
+export interface DefectRecord {
+  defectId: string;
+  sourceSystem: string;
+  department: string;
+  section: string;
+  severity: number;
+  daysOverdue: number;
+  assetAgeYears: number;
+  pastFailureCount: number;
+  deferredCount: number;
+  calculatedRiskScore: number;
+}
+
+export interface AffectedTrain {
+  id: string;
+  name: string;
+  type: 'Passenger' | 'Freight';
+  delayMins: number;
+  arrTime: string;
+  depTime: string;
 }
 
 export interface AffectedTrainMovement extends TrainMasterRecord {
@@ -119,10 +142,11 @@ const intervalOverlaps = (startA: number, endA: number, startB: number, endB: nu
 const trainRows = parseCsv(trainsMasterCsv);
 const timetableRows = parseCsv(sectionTimetableCsv);
 const capacityRows = parseCsv(corridorCapacityCsv);
+const defectRows = parseCsv(defectsCsv);
 
-const timetableByTrain = new Map<string, TimetableRecord[]>();
+const timetableByTrain = new Map<string, SectionTimetableRecord[]>();
 timetableRows.forEach((row) => {
-  const record: TimetableRecord = {
+  const record: SectionTimetableRecord = {
     trainNumber: row.train_no || row.train_number,
     section: row.section,
     arrivalTime: row.arr_time,
@@ -152,9 +176,52 @@ export const TRAIN_MASTER: TrainMasterRecord[] = trainRows.map((row) => {
   };
 });
 
+export const SECTION_TIMETABLE: SectionTimetableRecord[] = timetableRows.map((row) => ({
+  trainNumber: row.train_no || row.train_number,
+  section: row.section,
+  arrivalTime: row.arr_time,
+  departureTime: row.dep_time,
+  direction: row.direction,
+  days: row.days,
+}));
+
+export const CORRIDOR_CAPACITY: CorridorCapacityRecord[] = capacityRows.map((row) => ({
+  section: row.section,
+  totalTracks: Number(row.total_tracks || 0),
+  lineType: row.line_type || 'Unknown',
+  dailyTrainCount: Number(row.daily_train_count || 0),
+  criticalityTier: row.criticality_tier || 'Unclassified',
+  maxHourlyCapacity: Number(row.max_hourly_capacity || 0),
+}));
+
+export const DEFECTS: DefectRecord[] = defectRows.map((row) => ({
+  defectId: row.defect_id,
+  sourceSystem: row.source_system,
+  department: row.department,
+  section: row.section,
+  severity: Number(row.severity || 0),
+  daysOverdue: Number(row.days_overdue || 0),
+  assetAgeYears: Number(row.asset_age_years || 0),
+  pastFailureCount: Number(row.past_failure_count || 0),
+  deferredCount: Number(row.deferred_count || 0),
+  calculatedRiskScore: Number(row.calculated_risk_score || 0),
+}));
+
+export function getSectionTimetable(section?: string): SectionTimetableRecord[] {
+  if (!section) return SECTION_TIMETABLE;
+  const normalized = normalizeRailwaySection(section);
+  return SECTION_TIMETABLE.filter((entry) => normalizeRailwaySection(entry.section) === normalized);
+}
+
+export function getCorridorCapacity(section?: string): CorridorCapacityRecord[] {
+  if (!section) return CORRIDOR_CAPACITY;
+  const normalized = normalizeRailwaySection(section);
+  return CORRIDOR_CAPACITY.filter((entry) => normalizeRailwaySection(entry.section) === normalized);
+}
+
 const TRAIN_BY_NUMBER = new Map(TRAIN_MASTER.map((train) => [train.trainNumber, train]));
 
-const capacityBySection = new Map<string, CapacityRecord>();
+const capacityBySection = new Map<string, CorridorCapacityRecord>();
 capacityRows.forEach((row) => {
   capacityBySection.set(normalizeRailwaySection(row.section), {
     section: row.section,
@@ -172,6 +239,28 @@ const mitigationFor = (type: string, direction: string): string => {
   if (direction.toUpperCase() === 'DOWN') return 'Regulated at previous station';
   return 'Rerouted via Up Loop';
 };
+
+export function getAffectedTrains(section = '', durationMinutes = 0): AffectedTrain[] {
+  const blockDelay = Math.max(1, Math.round(Math.max(0, durationMinutes) / 60 * 12));
+  const normalizedSection = normalizeRailwaySection(section);
+
+  return SECTION_TIMETABLE
+    .filter((entry) => !normalizedSection || normalizeRailwaySection(entry.section) === normalizedSection)
+    .map((entry) => {
+      const train = TRAIN_BY_NUMBER.get(entry.trainNumber);
+      if (!train) return null;
+      const isFreight = train.type.toLowerCase().includes('freight') || train.type.toLowerCase().includes('goods');
+      return {
+        id: train.trainNumber,
+        name: train.trainName,
+        type: isFreight ? 'Freight' : 'Passenger',
+        delayMins: isFreight ? Math.max(1, Math.round(blockDelay * 25 / 12)) : blockDelay,
+        arrTime: entry.arrivalTime,
+        depTime: entry.departureTime,
+      };
+    })
+    .filter((train): train is AffectedTrain => Boolean(train));
+}
 
 export function getAffectedTrainMovements(request: Pick<BlockRequest, 'section' | 'requestedStartTime' | 'requestedEndTime' | 'durationMinutes'>): AffectedTrainMovement[] {
   const requestedSection = normalizeRailwaySection(request.section);

@@ -822,7 +822,7 @@ export const INITIAL_BLOCK_REQUESTS: BlockRequest[] = ([
 ].map((request) => ({
   ...request,
   ...calculateSectionDelays(request.durationMinutes, request.section),
-})));
+})) as BlockRequest[]);
 
 const STORAGE_KEY = 'raksha_block_requests_v3_pan_india';
 const CURRENT_USER_KEY = 'raksha_block_current_user_v1';

@@ -116,7 +116,7 @@ def justification(requests: list[dict[str, Any]], departments: list[str]) -> str
     return f"Synchronized Multi-Team Block: bundled {', '.join(departments)} maintenance activities."
 
 
-def build_result(requests: list[dict[str, Any]]) -> dict[str, Any]:
+def build_result(requests: list[dict[str, Any]], premium_train_windows: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     pending = [request for request in requests if request.get("status") == "PENDING"]
     if not pending:
         return {
@@ -137,6 +137,7 @@ def build_result(requests: list[dict[str, Any]]) -> dict[str, Any]:
         key = (normalize(request.get("section", "")), request.get("requestedDate", ""), normalize(request.get("lineType", "")))
         groups.setdefault(key, []).append(request)
 
+    premium_train_windows = premium_train_windows or []
     candidates: list[dict[str, Any]] = []
     for group in groups.values():
         upper_size = min(MAX_CANDIDATE_SIZE, len(group))
@@ -144,6 +145,20 @@ def build_result(requests: list[dict[str, Any]]) -> dict[str, Any]:
             for combination in combinations(group, size):
                 if candidate_is_valid(combination):
                     data = candidate_data(combination)
+                    blocked = any(
+                        normalize(window.get("section", "")) == normalize(data["requests"][0].get("section", ""))
+                        and (window.get("start_time_hhmm") or window.get("start"))
+                        and max(
+                            data["start"],
+                            time_to_minutes(window.get("start_time_hhmm", window.get("start", "00:00"))),
+                        ) < min(
+                            data["end"],
+                            time_to_minutes(window.get("end_time_hhmm", window.get("end", "00:00"))),
+                        )
+                        for window in premium_train_windows
+                    )
+                    if blocked:
+                        continue
                     if data["saved"] > 0:
                         candidates.append(data)
 

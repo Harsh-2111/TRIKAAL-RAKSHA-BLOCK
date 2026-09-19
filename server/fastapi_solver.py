@@ -19,6 +19,7 @@ class OptimizationRequest(BaseModel):
 
 class OptimizationPayload(BaseModel):
     requests: list[OptimizationRequest] = Field(default_factory=list)
+    premium_train_windows: list[dict[str, Any]] = Field(default_factory=list)
 
 
 app = FastAPI(title="RAKSHA-BLOCK CP-SAT Solver", version="1.0.0")
@@ -66,4 +67,4 @@ def health() -> dict[str, str]:
 @app.post("/api/optimize")
 def optimize(payload: OptimizationPayload) -> dict[str, Any]:
     requests = [to_solver_request(request) for request in payload.requests]
-    return build_result(requests)
+    return build_result(requests, payload.premium_train_windows)
