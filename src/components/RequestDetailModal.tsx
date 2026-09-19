@@ -123,7 +123,7 @@ export const RequestDetailModal: React.FC<RequestDetailModalProps> = ({
         <div className="bg-[#000075] text-white px-3.5 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b border-blue-900 print:bg-white print:text-black print:border-b-2 print:border-black">
           <div className="flex items-center space-x-3">
             <img
-              src="/logo.png"
+              src="/logo.jpg"
               alt="RAKSHA-BLOCK Logo"
               className="hidden print:block h-12 w-auto object-contain shrink-0 mr-1"
             />

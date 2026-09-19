@@ -76,7 +76,7 @@ export function exportRequestsToCsv(
 
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
-    const response = await fetch('/logo.png');
+    const response = await fetch('/logo.jpg');
     if (!response.ok) return null;
     const blob = await response.blob();
     return await new Promise((resolve) => {
@@ -113,7 +113,7 @@ export async function exportRequestsToOfficialPdf(
     pdf.setFillColor(234, 88, 12);
     pdf.rect(0, 25, pageWidth, 1.5, 'F');
     if (logoDataUrl) {
-      pdf.addImage(logoDataUrl, 'PNG', margin, 3, 18, 18);
+      pdf.addImage(logoDataUrl, 'JPEG', margin, 3, 18, 18);
     }
     pdf.setTextColor(255, 255, 255);
     pdf.setFont('helvetica', 'bold');
