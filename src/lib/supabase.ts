@@ -511,11 +511,16 @@ export async function fetchBlockRequestsFromSupabase(activeZone?: string): Promi
     }
 
     if (data && data.length > 0) {
-      const parsed = data.map(dbToBlockRequest);
+      const byRequestId = new Map<string, BlockRequest>();
+      data.forEach((row) => {
+        const request = dbToBlockRequest(row);
+        byRequestId.set(request.id, request);
+      });
+      const parsed = Array.from(byRequestId.values());
       const filtered = activeZone && activeZone !== 'ALL'
         ? parsed.filter((request) => request.zoneCode === activeZone || request.zone?.includes(activeZone) || request.division?.includes(activeZone))
         : parsed;
-      return { requests: filtered, fromSupabase: true };
+      return { requests: filtered.sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)), fromSupabase: true };
     }
 
     return { requests: [], fromSupabase: true };

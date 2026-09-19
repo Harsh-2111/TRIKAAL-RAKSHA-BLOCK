@@ -508,6 +508,14 @@ export default function App() {
     showToast('Logged out successfully. Returned to RAKSHA-BLOCK Login Portal.', 'info');
   };
 
+  const refreshRequestsFromSupabase = async () => {
+    const result = await fetchBlockRequestsFromSupabase();
+    if (!result.fromSupabase) return false;
+    setAllRequests(result.requests);
+    saveStoredRequests(result.requests);
+    return true;
+  };
+
   // Add new block request (Submitted by Department Officer)
   const handleCreateRequest = async (newReq: BlockRequest) => {
     // STRICT SECURITY VERIFICATION: Ensure the request department matches the logged-in user department
@@ -535,6 +543,7 @@ export default function App() {
     try {
       const dbRes = await insertBlockRequestToSupabase(newReq);
       if (dbRes.success) {
+        await refreshRequestsFromSupabase();
         showToast(`Block Requisition ${newReq.id} submitted and synchronized.`, 'success');
       } else {
         showToast(`Block Requisition ${newReq.id} submitted (Offline local cache active).`, 'info');
@@ -600,6 +609,7 @@ export default function App() {
         ? await deleteBlockRequestInSupabase(updatedReq.id)
         : await updateBlockRequestInSupabase(updatedReq);
       if (dbRes.success) {
+        await refreshRequestsFromSupabase();
         if (updatedReq.status === 'APPROVED' || updatedReq.status === 'MODIFIED_APPROVED') {
           void broadcastScheduleChange(updatedReq.section, updatedReq.status === 'APPROVED' ? 'APPROVED' : 'RESCHEDULED', updatedReq as unknown as Record<string, unknown>);
         }
@@ -639,6 +649,8 @@ export default function App() {
       const results = await Promise.all(closedRequests.map((request) => updateBlockRequestInSupabase(request)));
       if (results.some((result) => !result.success)) {
         showToast('Safety clearance saved locally, but one or more bundled records need cloud sync retry.', 'info');
+      } else {
+        await refreshRequestsFromSupabase();
       }
     } catch (err) {
       console.warn('Supabase completed-block update fallback:', err);
