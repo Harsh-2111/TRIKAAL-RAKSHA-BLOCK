@@ -280,16 +280,16 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
         </div>
 
         {/* 4 Distinct Department Cards: 4 columns on large laptops, 2 on medium, 1 on mobile */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 items-stretch">
           {rolesList.map((item, idx) => (
             <div
               key={item.role}
               id={`login-card-${item.role.toLowerCase()}`}
               onClick={() => handleOpenLoginModal(item.role)}
-              className={`bg-white rounded-xl border ${item.colorClasses.cardBorder} shadow-sm ${item.colorClasses.hoverGlow} hover:shadow-lg transition-all duration-200 flex flex-col justify-between overflow-hidden relative group cursor-pointer`}
+              className={`h-full bg-white rounded-xl border ${item.colorClasses.cardBorder} shadow-sm ${item.colorClasses.hoverGlow} hover:shadow-lg transition-all duration-200 flex flex-col overflow-hidden relative group cursor-pointer`}
             >
               {/* Card Official Department Header Ribbon */}
-              <div className={`px-5 py-3.5 ${item.colorClasses.headerBg} flex items-center justify-between border-b`}>
+              <div className={`min-h-[78px] px-5 py-3.5 ${item.colorClasses.headerBg} flex items-center justify-between border-b`}>
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center flex-shrink-0 shadow-sm border border-slate-200">
                     {item.icon}
@@ -307,7 +307,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
               </div>
 
               {/* Card Body */}
-              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+              <div className="p-5 flex-1 flex flex-col gap-6">
                 {/* Officer Credential Dossier Simulation */}
                 <div className={`p-3.5 rounded-lg ${item.colorClasses.accentBg} border border-slate-200 text-xs`}>
                   <div className="flex items-center justify-between">
@@ -322,7 +322,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
                 </div>
 
                 {/* Scope & Permissions List */}
-                <div>
+                <div className="min-h-[126px]">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center justify-between">
                     <span>Access Scope & Authority</span>
                     <span className="text-[10px] font-mono text-slate-400">Security Standard 4.1</span>
