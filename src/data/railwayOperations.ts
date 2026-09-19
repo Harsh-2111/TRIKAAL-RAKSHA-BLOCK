@@ -237,10 +237,10 @@ const defectRows = parseCsv(defectsCsv);
 const timetableByTrain = new Map<string, SectionTimetableRecord[]>();
 timetableRows.forEach((row) => {
   const record: SectionTimetableRecord = {
-    trainNumber: row.train_no || row.train_number,
-    section: row.section,
-    arrivalTime: row.arr_time,
-    departureTime: row.dep_time,
+    trainNumber: row.train_number || row.train_no,
+    section: row.section_id || row.section,
+    arrivalTime: row.scheduled_arrival || row.arr_time,
+    departureTime: row.scheduled_departure || row.dep_time,
     direction: row.direction,
     days: row.days,
   };
@@ -250,13 +250,13 @@ timetableRows.forEach((row) => {
 });
 
 export const TRAIN_MASTER: TrainMasterRecord[] = trainRows.map((row) => {
-  const routeSections = (timetableByTrain.get(row.train_no || row.train_number) || []).map((entry) => entry.section);
+  const routeSections = (timetableByTrain.get(row.train_number || row.train_no) || []).map((entry) => entry.section);
   const [derivedSource] = splitSection(routeSections[0] || 'Unknown');
   const [, derivedDestination] = splitSection(routeSections[routeSections.length - 1] || 'Unknown');
   return {
-    trainNumber: row.train_no || row.train_number,
+    trainNumber: row.train_number || row.train_no,
     trainName: row.train_name,
-    type: row.type || 'Passenger',
+    type: row.train_type || row.type || 'Passenger',
     source: row.source || derivedSource,
     destination: row.destination || derivedDestination,
     priorityClass: row.priority_class || 'Unclassified',
@@ -267,10 +267,10 @@ export const TRAIN_MASTER: TrainMasterRecord[] = trainRows.map((row) => {
 });
 
 export const SECTION_TIMETABLE: SectionTimetableRecord[] = timetableRows.map((row) => ({
-  trainNumber: row.train_no || row.train_number,
-  section: row.section,
-  arrivalTime: row.arr_time,
-  departureTime: row.dep_time,
+  trainNumber: row.train_number || row.train_no,
+  section: row.section_id || row.section,
+  arrivalTime: row.scheduled_arrival || row.arr_time,
+  departureTime: row.scheduled_departure || row.dep_time,
   direction: row.direction,
   days: row.days,
 }));
@@ -424,18 +424,22 @@ export function getAffectedTrainMovements(request: Pick<BlockRequest, 'section' 
   const movements: AffectedTrainMovement[] = [];
 
   timetableRows.forEach((row) => {
-    if (normalizeRailwaySection(row.section) !== requestedSection) return;
-    const train = TRAIN_BY_NUMBER.get(row.train_no || row.train_number);
+    const rowSection = row.section_id || row.section;
+    const rowTrainNumber = row.train_number || row.train_no;
+    const rowArrival = row.scheduled_arrival || row.arr_time;
+    const rowDeparture = row.scheduled_departure || row.dep_time;
+    if (normalizeRailwaySection(rowSection) !== requestedSection) return;
+    const train = TRAIN_BY_NUMBER.get(rowTrainNumber);
     if (!train) return;
-    const trainStart = toMinutes(row.arr_time);
-    const trainEnd = toMinutes(row.dep_time);
+    const trainStart = toMinutes(rowArrival);
+    const trainEnd = toMinutes(rowDeparture);
     if (!intervalOverlaps(blockStart, blockEnd, trainStart, trainEnd)) return;
     const delayMinutes = train.type.toLowerCase().includes('freight') || train.type.toLowerCase().includes('goods')
       ? Math.max(1, Math.round(request.durationMinutes / 60 * 25))
       : Math.max(1, Math.round(request.durationMinutes / 60 * 12));
     movements.push({
       ...train,
-      scheduledSectionTime: `${row.arr_time} - ${row.dep_time}`,
+      scheduledSectionTime: `${rowArrival} - ${rowDeparture}`,
       direction: row.direction,
       delayMinutes,
       mitigation: mitigationFor(train.type, row.direction),
@@ -470,16 +474,19 @@ export function getAffectedTrainsForBlock(sectionId: string, startTime: string, 
   const blockEnd = toMinutes(endTime);
 
   return timetableRows
-    .filter((row) => normalizeRailwaySection(row.section) === normalizeRailwaySection(requestedSection))
+    .filter((row) => normalizeRailwaySection(row.section_id || row.section) === normalizeRailwaySection(requestedSection))
     .map((row) => {
-      const train = TRAIN_BY_NUMBER.get(row.train_no || row.train_number);
-      if (!train || !intervalOverlaps(blockStart, blockEnd, toMinutes(row.arr_time), toMinutes(row.dep_time))) return null;
+      const rowTrainNumber = row.train_number || row.train_no;
+      const rowArrival = row.scheduled_arrival || row.arr_time;
+      const rowDeparture = row.scheduled_departure || row.dep_time;
+      const train = TRAIN_BY_NUMBER.get(rowTrainNumber);
+      if (!train || !intervalOverlaps(blockStart, blockEnd, toMinutes(rowArrival), toMinutes(rowDeparture))) return null;
       const delayMinutes = train.type.toLowerCase().includes('freight') || train.type.toLowerCase().includes('goods')
         ? Math.max(1, Math.round(Math.max(1, blockEnd - blockStart) / 60 * 25))
         : Math.max(1, Math.round(Math.max(1, blockEnd - blockStart) / 60 * 12));
       return {
         ...train,
-        scheduledSectionTime: `${row.arr_time} - ${row.dep_time}`,
+        scheduledSectionTime: `${rowArrival} - ${rowDeparture}`,
         direction: row.direction,
         delayMinutes,
         mitigation: mitigationFor(train.type, row.direction),
@@ -527,3 +534,95 @@ export function getSectionCapacitySummary(
     criticalityTier: capacity.criticalityTier,
   };
 }
+
+export interface RailwayDataIntegrityReport {
+  corridorCountByZone: Record<string, number>;
+  timetableCountByZone: Record<string, number>;
+  trainCount: number;
+  defectCountByDepartmentAndZone: Record<string, number>;
+  orphanTimetableSections: string[];
+  orphanDefectSections: string[];
+  missingTrainNumbers: string[];
+  invalidZoneValues: Array<{ dataset: string; value: string }>;
+  invalidDefectDepartments: string[];
+}
+
+const STANDARD_ZONE_CODES: RailwayZoneCode[] = ['NR', 'WR', 'CR', 'ER', 'SR'];
+const emptyZoneCounts = (): Record<string, number> => Object.fromEntries(STANDARD_ZONE_CODES.map((zone) => [zone, 0]));
+
+/** Development-only cross-check for the four synthetic operational datasets. */
+export function validateRailwayDataIntegrity(): RailwayDataIntegrityReport {
+  const corridorSectionIds = new Set(capacityRows.map((row) => row.section_id || row.section));
+  const timetableSections = timetableRows.map((row) => row.section);
+  const defectSections = defectRows.map((row) => row.section);
+  const trainNumbers = new Set(trainRows.map((row) => row.train_no || row.train_number));
+  const corridorCountByZone = emptyZoneCounts();
+  const timetableCountByZone = emptyZoneCounts();
+  const defectCountByDepartmentAndZone: Record<string, number> = {};
+  const invalidZoneValues: Array<{ dataset: string; value: string }> = [];
+  const validDepartments = new Set(['ENG', 'ST', 'TRD']);
+  const invalidDefectDepartments = new Set<string>();
+
+  capacityRows.forEach((row) => {
+    const rawZone = row.zone || '';
+    const zone = extractZoneCode(rawZone);
+    if (!STANDARD_ZONE_CODES.includes(zone) || rawZone !== rawZone.trim() || rawZone !== zone) {
+      invalidZoneValues.push({ dataset: 'corridor_capacity.csv', value: rawZone });
+    }
+    if (STANDARD_ZONE_CODES.includes(zone)) corridorCountByZone[zone] += 1;
+  });
+
+  const zoneForSection = (section: string): RailwayZoneCode => getCorridorZoneCode(section);
+  timetableRows.forEach((row) => {
+    const zone = zoneForSection(row.section);
+    if (STANDARD_ZONE_CODES.includes(zone)) timetableCountByZone[zone] += 1;
+  });
+
+  defectRows.forEach((row) => {
+    const zone = zoneForSection(row.section);
+    const department = row.department.replace(/\s*&\s*/g, '&').trim().toUpperCase() === 'S&T'
+      ? 'ST'
+      : row.department.trim().toUpperCase() === 'ENGINEERING'
+      ? 'ENG'
+      : row.department.trim().toUpperCase();
+    if (!validDepartments.has(department)) invalidDefectDepartments.add(row.department);
+    const key = `${department}/${zone}`;
+    defectCountByDepartmentAndZone[key] = (defectCountByDepartmentAndZone[key] || 0) + 1;
+  });
+
+  const report: RailwayDataIntegrityReport = {
+    corridorCountByZone,
+    timetableCountByZone,
+    trainCount: trainRows.length,
+    defectCountByDepartmentAndZone,
+    orphanTimetableSections: Array.from(new Set(timetableSections.filter((section) => !corridorSectionIds.has(section)))),
+    orphanDefectSections: Array.from(new Set(defectSections.filter((section) => !corridorSectionIds.has(section)))),
+    missingTrainNumbers: Array.from(new Set(timetableRows.map((row) => row.train_no || row.train_number).filter((number) => !trainNumbers.has(number)))),
+    invalidZoneValues,
+    invalidDefectDepartments: Array.from(invalidDefectDepartments),
+  };
+
+  console.groupCollapsed('[RAKSHA-BLOCK] Railway data integrity report');
+  console.info('Total corridors by zone', report.corridorCountByZone);
+  console.info('Total timetable entries by derived zone', report.timetableCountByZone);
+  console.info('Total trains loaded', report.trainCount);
+  console.info('Total defects by department/derived zone', report.defectCountByDepartmentAndZone);
+  console.info('Unique zone values by dataset', {
+    corridor_capacity: Array.from(new Set(capacityRows.map((row) => row.zone))),
+    section_timetable: ['derived from section_id'],
+    trains_master: ['not present in schema'],
+    defects: ['derived from section_id'],
+  });
+  console.table({
+    orphanTimetableSections: report.orphanTimetableSections,
+    orphanDefectSections: report.orphanDefectSections,
+    missingTrainNumbers: report.missingTrainNumbers,
+    invalidZoneValues: report.invalidZoneValues,
+    invalidDefectDepartments: report.invalidDefectDepartments,
+  });
+  console.groupEnd();
+
+  return report;
+}
+
+if (import.meta.env.DEV) validateRailwayDataIntegrity();
