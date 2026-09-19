@@ -45,7 +45,7 @@ export const ZoneSelector: React.FC<ZoneSelectorProps> = ({
             🇮🇳 All India (Pan-India Unified View)
           </option>
           <option value="NR" className="bg-[#000075] text-white py-1">
-            NR - Delhi Division (DLI)
+            NR - DLI
           </option>
           <option value="WR" className="bg-[#000075] text-white py-1">
             Western Railway (WR) - Mumbai Central (MMCT)

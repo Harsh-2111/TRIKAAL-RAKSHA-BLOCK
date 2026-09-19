@@ -136,15 +136,6 @@ export const DepartmentLoginModal: React.FC<DepartmentLoginModalProps> = ({
             </div>
           </div>
 
-          <div className="mt-2 text-[11px] sm:text-xs text-blue-100/90 flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="bg-white/15 px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-mono">
-              Role: {selectedRole}
-            </span>
-            <span className="text-white/40">•</span>
-            <span>Division: Delhi (DLI)</span>
-            <span className="text-white/40">•</span>
-            <span className="text-emerald-300">Authorized Officer Access</span>
-          </div>
         </div>
 
         {/* Modal Body & Form */}

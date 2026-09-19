@@ -304,11 +304,6 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-white/20 text-white uppercase tracking-wider">
-                    {item.scopeTag}
-                  </span>
-                </div>
               </div>
 
               {/* Card Body */}
@@ -346,22 +341,6 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
                   </ul>
                 </div>
 
-                {/* Key Maintenance Modules & Tasks */}
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-                    Key Maintenance Modules:
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {item.sampleTasks.map((task, tIdx) => (
-                      <span
-                        key={tIdx}
-                        className="text-[11px] font-medium bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded border border-slate-200"
-                      >
-                        {task}
-                      </span>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               {/* Card Official Action Button Footer */}

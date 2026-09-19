@@ -319,18 +319,6 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
 
-            {/* Quick Context Division indicator */}
-            <div className="flex items-center space-x-2.5 text-[11px] py-1">
-              <div className="hidden md:flex items-center space-x-2 text-blue-300">
-                <span className="font-mono text-amber-300 font-semibold">
-                  {activeZone === 'ALL'
-                    ? 'PAN-INDIA GEOPORTAL (5 ZONES)'
-                    : `${activeZone} - ${ZONAL_RAILWAYS[activeZone]?.divisionCode} GEOPORTAL`}
-                </span>
-                <span>•</span>
-                <span className="text-slate-300">WGS84 Esri Satellite Layer</span>
-              </div>
-            </div>
           </div>
         </nav>
       )}

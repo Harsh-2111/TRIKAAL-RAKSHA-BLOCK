@@ -956,10 +956,6 @@ export const LiveAnalyticsMapDashboard: React.FC<LiveAnalyticsMapDashboardProps>
           </button>
         </div>
 
-        {/* Bottom Sensor Attribution Badge */}
-        <div className="absolute bottom-2 left-4 z-20 bg-slate-950/70 backdrop-blur-xs text-[10px] text-slate-400 px-2 py-1 rounded border border-slate-800 pointer-events-none hidden sm:block font-mono">
-          Carto Light Political Layer • WGS84 Projection • Indian Railways Track GIS
-        </div>
       </div>
 
       {/* ANALYTICS PANEL (Specification 5: Next to/Below the Map) */}

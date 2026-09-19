@@ -383,14 +383,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Top Banner with Section Controller Authority Highlight */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center space-x-2">
-            <span className="px-2.5 py-0.5 rounded text-xs font-bold uppercase bg-[#000075] text-amber-300 border border-blue-900">
-              MAIN CONTROL ADMINISTRATOR
-            </span>
-            <span className="text-xs text-slate-500 font-mono">
-              Delhi Division (DLI) • Operating Control Desk
-            </span>
-          </div>
           <h1 className="text-xl font-bold text-slate-900 mt-1 flex items-center space-x-2">
             <span>Central Maintenance Demand Management & Approval Workflow</span>
           </h1>
@@ -598,31 +590,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* AI CP-SAT Recommendation Banner if Pending Demands Exist */}
       {stats.totalPending > 1 && (
-        <div className="p-3.5 bg-linear-to-r from-blue-50 via-indigo-50/50 to-blue-50 border border-blue-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-start sm:items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-[#000075] text-amber-300 flex items-center justify-center shrink-0 shadow-xs">
-              <Cpu className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-blue-950">
-                  AI Integrated Task Bundling Engine Available
-                </span>
-                <span className="text-[10px] font-mono font-bold bg-amber-200 text-blue-950 px-1.5 py-0.2 rounded">
-                  {stats.totalPending} Pending Demands
-                </span>
-              </div>
-              <p className="text-[11px] text-blue-900/80 mt-0.5">
-                Simultaneously cluster Engineering (P-Way), S&T, and TRD corridor blocks into unified windows to eliminate section conflicts and minimize passenger train detention.
-              </p>
-            </div>
-          </div>
+        <div className="flex justify-end">
           <button
             onClick={() => setIsAiOptimizerOpen(true)}
-            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded text-xs font-bold text-white bg-[#000075] hover:bg-blue-900 shadow-xs transition-colors shrink-0 cursor-pointer"
+            className="p-2 rounded text-blue-950 hover:bg-blue-50 transition-colors cursor-pointer"
+            title="Launch CP-SAT Engine"
+            aria-label="Launch CP-SAT Engine"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Launch CP-SAT Engine</span>
+            <Cpu className="w-4 h-4" />
           </button>
         </div>
       )}
