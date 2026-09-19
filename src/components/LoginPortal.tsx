@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   Clock,
   UserCheck,
-  Database,
   RefreshCw,
   Sparkles,
   ExternalLink,
@@ -27,7 +26,7 @@ import {
 } from 'lucide-react';
 import { OFFICIAL_ROLES } from '../data/mockData';
 import { User, UserRole, SupabaseSyncState } from '../types';
-import { fetchProfilesFromSupabase, SUPABASE_URL, JUDGE_DEMO_CREDENTIALS } from '../lib/supabase';
+import { fetchProfilesFromSupabase, JUDGE_DEMO_CREDENTIALS } from '../lib/supabase';
 import { DepartmentLoginModal } from './DepartmentLoginModal';
 
 interface LoginPortalProps {
@@ -275,7 +274,7 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
               <span>विभागीय लॉगिन पोर्टल | Authorized Department Consoles</span>
             </h2>
             <p className="text-xs text-slate-600 mt-0.5">
-              Select your department portal below. Role isolation and approval authorities are strictly validated by IR-RBAC Tier 1.
+              Select your department portal below. Role permissions and approval authorities are strictly enforced for authorized officers.
             </p>
           </div>
         </div>
@@ -330,8 +329,8 @@ export const LoginPortal: React.FC<LoginPortalProps> = ({
                 {/* Scope & Permissions List */}
                 <div>
                   <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center justify-between">
-                    <span>IR-RBAC Scope & Authority</span>
-                    <span className="text-[10px] font-mono text-slate-400">Security Rule #4.1</span>
+                    <span>Access Scope & Authority</span>
+                    <span className="text-[10px] font-mono text-slate-400">Security Standard 4.1</span>
                   </div>
                   <ul className="space-y-1.5 text-xs text-slate-700">
                     {item.permissions.map((perm, pIdx) => (

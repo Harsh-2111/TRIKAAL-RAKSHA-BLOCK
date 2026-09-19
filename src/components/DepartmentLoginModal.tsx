@@ -9,14 +9,12 @@ import {
   AlertCircle,
   Train,
   ArrowRight,
-  Database,
   KeyRound,
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 import {
   verifyCredentialsAgainstSupabase,
   JUDGE_DEMO_CREDENTIALS,
-  SUPABASE_URL,
 } from '../lib/supabase';
 
 interface DepartmentLoginModalProps {
@@ -71,8 +69,6 @@ export const DepartmentLoginModal: React.FC<DepartmentLoginModalProps> = ({
     setIsVerifying(true);
 
     try {
-      // Direct query and validation via Supabase profiles table:
-      // query: supabase.from('profiles').select('*').eq('user_id', entered_id)
       const result = await verifyCredentialsAgainstSupabase(userId, password, selectedRole);
 
       if (result.success && result.user) {
@@ -132,7 +128,7 @@ export const DepartmentLoginModal: React.FC<DepartmentLoginModalProps> = ({
             <div>
               <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-amber-400 flex items-center space-x-1.5">
                 <Train className="w-3 h-3" />
-                <span>IR-RBAC AUTHENTICATION GATEWAY</span>
+                <span>INDIAN RAILWAYS CONTROL ACCESS GATEWAY</span>
               </div>
               <h2 id="modal-login-title" className="text-base sm:text-xl font-black text-white tracking-tight">
                 {currentRoleInfo.departmentName} - Secure Login
@@ -147,10 +143,7 @@ export const DepartmentLoginModal: React.FC<DepartmentLoginModalProps> = ({
             <span className="text-white/40">•</span>
             <span>Division: Delhi (DLI)</span>
             <span className="text-white/40">•</span>
-            <span className="flex items-center space-x-1 text-emerald-300">
-              <Database className="w-3 h-3" />
-              <span>Supabase `profiles`</span>
-            </span>
+            <span className="text-emerald-300">Authorized Officer Access</span>
           </div>
         </div>
 
@@ -218,7 +211,7 @@ export const DepartmentLoginModal: React.FC<DepartmentLoginModalProps> = ({
                 />
               </div>
               <p className="mt-1 text-[11px] text-slate-500">
-                Verified directly against the Supabase <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-slate-700">profiles</code> table (<code className="font-mono">user_id</code> column).
+                Authorized access for Indian Railways Officers.
               </p>
             </div>
 
@@ -272,7 +265,7 @@ export const DepartmentLoginModal: React.FC<DepartmentLoginModalProps> = ({
               {isVerifying ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Verifying with Supabase...</span>
+                  <span>Verifying officer credentials...</span>
                 </>
               ) : (
                 <>

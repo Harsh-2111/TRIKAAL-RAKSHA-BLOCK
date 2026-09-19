@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import {
-  Database,
+  Radio,
   CheckCircle2,
   AlertTriangle,
   RefreshCw,
   X,
-  Radio,
   ShieldCheck,
-  Table,
   Layers,
   Clock,
   Cpu,
@@ -15,7 +13,6 @@ import {
   Server
 } from 'lucide-react';
 import { SupabaseSyncState } from '../types';
-import { SUPABASE_URL } from '../lib/supabase';
 
 interface SupabaseStatusModalProps {
   isOpen: boolean;
@@ -58,17 +55,17 @@ export const SupabaseStatusModal: React.FC<SupabaseStatusModalProps> = ({
         <div className="bg-[#000075] text-white px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-emerald-300">
-              <Database className="w-4 h-4" />
+              <Radio className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-base font-bold flex items-center space-x-2">
-                <span>Supabase 3-Table Real-Time Engine</span>
+                <span>Operational Data &amp; Synchronization</span>
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-black">
-                  Production RLS
+                  Protected Service
                 </span>
               </h3>
               <p className="text-xs text-blue-200">
-                PostgreSQL Replication & Multi-Window Data Ingestion
+                Live coordination across block requests and schedules
               </p>
             </div>
           </div>
@@ -105,15 +102,15 @@ export const SupabaseStatusModal: React.FC<SupabaseStatusModalProps> = ({
                 <div className="font-bold text-sm flex items-center space-x-2">
                   <span>
                     {isLive
-                      ? 'Supabase Real-Time Replication: Active & Connected'
-                      : 'Offline Resilient Mode: Local Fallback Cache Active'}
+                      ? 'Live Operational Updates: Active & Connected'
+                      : 'Offline Resilient Mode: Local Cache Active'}
                   </span>
                 </div>
                 <p className="text-xs mt-1 text-slate-600 leading-relaxed">
                   {isLive
-                    ? 'Listening to live Postgres changes on tables public.block_requests and public.ai_schedules. Changes submitted anywhere sync across all open browsers instantly.'
+                    ? 'Listening for authorized changes to block requests and schedules. Updates sync across all open control consoles instantly.'
                     : syncState.errorMessage ||
-                      'Operating in zero-latency offline cache mode. State is securely backed by local storage and will sync to Supabase when network resumes.'}
+                      'Operating in offline cache mode. Local changes will synchronize automatically when network service resumes.'}
                 </p>
                 {syncState.lastSyncedAt && (
                   <div className="text-[11px] text-slate-500 mt-2 font-mono flex items-center space-x-1">
@@ -137,35 +134,35 @@ export const SupabaseStatusModal: React.FC<SupabaseStatusModalProps> = ({
           {resyncSuccess && (
             <div className="bg-emerald-100 border border-emerald-300 text-emerald-800 px-3 py-2 rounded text-xs font-semibold flex items-center space-x-2 animate-in fade-in">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Supabase records re-queried and synchronized successfully!</span>
+              <span>Operational records refreshed and synchronized successfully!</span>
             </div>
           )}
 
-          {/* Database Endpoint Information */}
+          {/* Service Connection Information */}
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 text-xs">
             <div className="flex items-center justify-between text-slate-500 font-medium">
               <span className="flex items-center space-x-1.5">
                 <Server className="w-3.5 h-3.5 text-slate-400" />
-                <span>Cloud PostgreSQL Endpoint:</span>
+                <span>Secure service connection:</span>
               </span>
               <span className="font-mono text-slate-700 truncate max-w-[280px]">
-                {SUPABASE_URL}
+                Operational data service online
               </span>
             </div>
           </div>
 
-          {/* 3-Table Architecture Status */}
+          {/* Operational Service Status */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center space-x-1.5">
-              <Table className="w-3.5 h-3.5 text-[#000075]" />
-              <span>Managed 3-Table Schema & RLS Policy Enforcement</span>
+              <Layers className="w-3.5 h-3.5 text-[#000075]" />
+              <span>Managed Operational Services &amp; Access Controls</span>
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Table 1: profiles */}
+              {/* Officer access service */}
               <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-2xs">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-bold font-mono text-blue-900">profiles</span>
+                  <span className="text-xs font-bold text-blue-900">Officer access</span>
                   <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800">
                     4 Roles
                   </span>
@@ -175,14 +172,14 @@ export const SupabaseStatusModal: React.FC<SupabaseStatusModalProps> = ({
                 </p>
                 <div className="mt-2 text-[10px] text-emerald-700 font-semibold flex items-center space-x-1">
                   <ShieldCheck className="w-3 h-3" />
-                  <span>RLS: Public Read</span>
+                  <span>Authorized officer access</span>
                 </div>
               </div>
 
-              {/* Table 2: block_requests */}
+              {/* Block request service */}
               <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-2xs">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-bold font-mono text-emerald-900">block_requests</span>
+                  <span className="text-xs font-bold text-emerald-900">Block requisitions</span>
                   <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
                     {totalRequestsCount} Live Records
                   </span>
@@ -192,14 +189,14 @@ export const SupabaseStatusModal: React.FC<SupabaseStatusModalProps> = ({
                 </p>
                 <div className="mt-2 text-[10px] text-emerald-700 font-semibold flex items-center space-x-1">
                   <ShieldCheck className="w-3 h-3" />
-                  <span>RLS: Dept Isolated</span>
+                  <span>Department access controls active</span>
                 </div>
               </div>
 
-              {/* Table 3: ai_schedules */}
+              {/* AI schedule service */}
               <div className="bg-white border border-slate-200 rounded-lg p-3.5 shadow-2xs">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-bold font-mono text-purple-900">ai_schedules</span>
+                  <span className="text-xs font-bold text-purple-900">AI schedules</span>
                   <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800">
                     Audit Log
                   </span>
@@ -209,7 +206,7 @@ export const SupabaseStatusModal: React.FC<SupabaseStatusModalProps> = ({
                 </p>
                 <div className="mt-2 text-[10px] text-emerald-700 font-semibold flex items-center space-x-1">
                   <ShieldCheck className="w-3 h-3" />
-                  <span>RLS: Admin Write</span>
+                  <span>Controller authority protected</span>
                 </div>
               </div>
             </div>
@@ -219,16 +216,16 @@ export const SupabaseStatusModal: React.FC<SupabaseStatusModalProps> = ({
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5">
             <div className="flex items-center space-x-2 text-xs font-bold text-slate-800 mb-2">
               <Radio className="w-4 h-4 text-emerald-600" />
-              <span>Active WebSocket Channel: public-db-changes</span>
+              <span>Live Operational Connection</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
               <div className="flex items-center space-x-2 bg-white p-2 rounded border border-slate-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span>public.block_requests (* all events)</span>
+                <span>Block requisition updates</span>
               </div>
               <div className="flex items-center space-x-2 bg-white p-2 rounded border border-slate-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span>public.ai_schedules (INSERT events)</span>
+                <span>Published AI schedules</span>
               </div>
             </div>
           </div>
@@ -237,7 +234,7 @@ export const SupabaseStatusModal: React.FC<SupabaseStatusModalProps> = ({
         {/* Modal Footer */}
         <div className="bg-slate-50 border-t border-slate-200 px-6 py-3 flex items-center justify-between">
           <span className="text-[11px] text-slate-500 font-mono">
-            Ministry of Railways • RAKSHA-BLOCK Production Architecture
+            Ministry of Railways • RAKSHA-BLOCK Operations Service
           </span>
           <button
             onClick={onClose}

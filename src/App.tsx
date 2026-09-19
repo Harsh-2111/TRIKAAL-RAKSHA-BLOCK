@@ -478,7 +478,7 @@ export default function App() {
         errorMessage: null,
         pendingSyncCount: 0,
       });
-      showToast('Database synchronized with Supabase cloud successfully.', 'success');
+      showToast('Operational records synchronized successfully.', 'success');
     } catch (err: any) {
       showToast(`Sync failed: ${err?.message || 'Network error'}. Local cache retained.`, 'info');
       throw err;
@@ -535,13 +535,13 @@ export default function App() {
     try {
       const dbRes = await insertBlockRequestToSupabase(newReq);
       if (dbRes.success) {
-        showToast(`Block Requisition ${newReq.id} submitted & synced to Supabase.`, 'success');
+        showToast(`Block Requisition ${newReq.id} submitted and synchronized.`, 'success');
       } else {
         showToast(`Block Requisition ${newReq.id} submitted (Offline local cache active).`, 'info');
       }
     } catch (err) {
       console.warn('Supabase insertion fallback:', err);
-      showToast(`Requisition ${newReq.id} saved in local RLS cache.`, 'info');
+          showToast(`Requisition ${newReq.id} saved in the local offline cache.`, 'info');
     }
   };
 
@@ -603,7 +603,7 @@ export default function App() {
         if (updatedReq.status === 'APPROVED' || updatedReq.status === 'MODIFIED_APPROVED') {
           void broadcastScheduleChange(updatedReq.section, updatedReq.status === 'APPROVED' ? 'APPROVED' : 'RESCHEDULED', updatedReq as unknown as Record<string, unknown>);
         }
-        showToast(`Requisition ${updatedReq.id} ${actionText} & synced to Supabase.`, 'success');
+        showToast(`Requisition ${updatedReq.id} ${actionText} and synchronized.`, 'success');
       } else {
         showToast(`Requisition ${updatedReq.id} ${actionText} (Offline cache active).`, 'info');
       }

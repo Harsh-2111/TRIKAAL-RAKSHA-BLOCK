@@ -439,7 +439,7 @@ export const AiCoPilotRecommendationEngine: React.FC<AiCoPilotRecommendationEngi
                     ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 cursor-default opacity-80'
                     : 'bg-[#000075] hover:bg-blue-900 active:bg-blue-950 text-white'
                 }`}
-                title="Automatically adjust time to 01:00 - 04:00 hrs and update Supabase"
+                title="Automatically adjust time to 01:00 - 04:00 hrs and publish the revised schedule"
               >
                 {isProcessingShift ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -538,7 +538,7 @@ export const AiCoPilotRecommendationEngine: React.FC<AiCoPilotRecommendationEngi
                 disabled={isProcessingTsr}
                 onClick={handleAttachTsr}
                 className="inline-flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 active:bg-amber-800 transition-all shadow-xs cursor-pointer w-full sm:w-auto"
-                title="Attach TSR Caution Order to requisition and persist to Supabase"
+                              title="Attach TSR Caution Order to requisition and publish the clearance"
               >
                 {isProcessingTsr ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />

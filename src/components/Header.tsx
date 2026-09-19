@@ -350,11 +350,11 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="overflow-hidden whitespace-nowrap w-full relative flex items-center">
           <div className="animate-irctc-marquee flex items-center space-x-8 text-white tracking-wide text-[11px] sm:text-xs">
             <span className="font-semibold">
-              🚆 RAKSHA-BLOCK ACTIVE: Automated Line Clearance &amp; Maintenance Optimizer • Operating across NR, WR, CR, ER, and SR Zonal Networks • Real-time Supabase Data Synchronization &amp; Safety Clearances Online.
+              🚆 RAKSHA-BLOCK ACTIVE: Automated Line Clearance &amp; Maintenance Optimizer • Operating across NR, WR, CR, ER, and SR Zonal Networks • Live operational synchronization &amp; safety clearances online.
             </span>
             <span className="text-amber-200 font-bold">★ ★ ★</span>
             <span className="font-semibold">
-              🚆 RAKSHA-BLOCK ACTIVE: Automated Line Clearance &amp; Maintenance Optimizer • Operating across NR, WR, CR, ER, and SR Zonal Networks • Real-time Supabase Data Synchronization &amp; Safety Clearances Online.
+              🚆 RAKSHA-BLOCK ACTIVE: Automated Line Clearance &amp; Maintenance Optimizer • Operating across NR, WR, CR, ER, and SR Zonal Networks • Live operational synchronization &amp; safety clearances online.
             </span>
             <span className="text-amber-200 font-bold">★ ★ ★</span>
           </div>
